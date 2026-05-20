@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>ΕΜΒΟΛΙΑ — Παρακολούθηση Παραγγελιών</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -101,10 +104,10 @@ textarea{resize:vertical;min-height:40px;font-size:11px}
 .tbl-outer{overflow:auto;border:1px solid var(--border);border-radius:var(--r);flex:1}
 .tbl-scaler{transform-origin:top left;transform:scale(var(--zoom));width:calc(100% / var(--zoom))}
 table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
-thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
-th{padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);cursor:pointer;user-select:none;font-weight:500}
-th:hover{color:var(--text)}
-th .arr{font-size:9px;margin-left:2px}
+thead tr{background:var(--surface2);border-bottom:1px solid var(--border2)}
+th{padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#ffffff;cursor:pointer;user-select:none;font-weight:600}
+th:hover{color:var(--amber)}
+th .arr{font-size:10px;margin-left:2px}
 tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:var(--surface2)}
@@ -169,6 +172,10 @@ td.meta-cell{max-width:120px}
 .name-gate input{text-align:center;font-size:14px;padding:10px;margin-bottom:12px;letter-spacing:0.05em}
 .name-gate .btn-primary{width:100%;padding:10px;font-size:13px}
 .gate-error{font-size:11px;color:var(--red);margin-top:8px;min-height:16px}
+.name-options{display:flex;gap:8px;margin-top:4px}
+.name-opt-btn{flex:1;padding:12px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.15s}
+.name-opt-btn:hover{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.btn-tool:disabled{opacity:0.25;cursor:not-allowed;pointer-events:none}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:18px;right:18px;background:var(--surface);border:1px solid var(--border2);color:var(--accent);padding:9px 16px;border-radius:var(--rs);font-family:'Syne',sans-serif;font-weight:600;font-size:12px;z-index:999;transform:translateY(70px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;max-width:300px}
@@ -193,9 +200,17 @@ td.meta-cell{max-width:120px}
 <div id="gate-bg" class="modal-bg">
   <div class="name-gate">
     <h2>ΕΜΒΟΛΙΑ</h2>
-    <p>Παρακολούθηση Παραγγελιών<br>Εισάγετε το όνομά σας για να συνεχίσετε.</p>
-    <div class="fgroup"><input type="text" id="gate-name" placeholder="Το όνομά σας…" onkeydown="if(event.key==='Enter')confirmName()"></div>
-    <button class="btn-primary" onclick="confirmName()">Είσοδος</button>
+    <p>Παρακολούθηση Παραγγελιών<br>Ποιος είσαι;</p>
+    <div class="name-options">
+      <button class="name-opt-btn" onclick="selectPresetName('Πάνος')">Πάνος</button>
+      <button class="name-opt-btn" onclick="selectPresetName('Ελένη')">Ελένη</button>
+      <button class="name-opt-btn" id="other-btn" onclick="toggleOtherName()">Άλλο…</button>
+    </div>
+    <div id="other-name-wrap" style="display:none;margin-top:10px">
+      <input type="text" id="gate-name" placeholder="Εισάγετε το όνομά σας…" onkeydown="if(event.key==='Enter')confirmOtherName()">
+      <button class="btn-primary" style="width:100%;margin-top:8px" onclick="confirmOtherName()">Είσοδος</button>
+    </div>
+    <div class="gate-error" id="name-error"></div>
   </div>
 </div>
 
@@ -323,6 +338,8 @@ td.meta-cell{max-width:120px}
       <option value="-">Εκκρεμείς</option>
     </select>
     <button class="btn-tool" onclick="loadData()">↺ Ανανέωση</button>
+    <button class="btn-tool" id="btn-undo" onclick="undo()" disabled title="Αναίρεση (Ctrl+Z)">↩ Αναίρεση</button>
+    <button class="btn-tool" id="btn-redo" onclick="redo()" disabled title="Επανάληψη (Ctrl+Y)">↪ Επανάληψη</button>
     <button class="btn-tool" onclick="exportCSV()">↓ CSV</button>
   </div>
 
@@ -564,6 +581,7 @@ async function addEntry() {
     const [inserted] = await sbInsert(row);
     // log history
     await sbHInsert({ row_id: inserted.id, action: 'created', user_name: currentUser, ts: now });
+    pushUndo({ type: 'add', after: inserted });
     data.unshift({ ...inserted, _new: true });
     resetForm(); render();
     setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
@@ -652,7 +670,9 @@ async function saveEdit() {
     const [updated] = await sbUpdate(editId, row);
     await sbHInsert({ row_id: editId, action: 'edited', user_name: currentUser, ts: now });
     const idx = data.findIndex(x => x.id === editId);
+    const before = idx >= 0 ? { ...data[idx] } : null;
     if (idx >= 0) data[idx] = updated;
+    if (before) pushUndo({ type: 'edit', before, after: updated });
     closeModal(); render();
     setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
     toast('Η εγγραφή ενημερώθηκε');
@@ -680,6 +700,8 @@ async function confirmDelete() {
   setSyncStatus('loading','Διαγραφή…');
   try {
     await sbDelete(deleteId);
+    const deleted = data.find(x => x.id === deleteId);
+    if (deleted) pushUndo({ type: 'delete', before: { ...deleted } });
     data = data.filter(x => x.id !== deleteId);
     closeConfirm(); render();
     setSyncStatus('ok','Διαγράφηκε ✓');
@@ -805,8 +827,86 @@ function toast(msg, err=false) {
   clearTimeout(tt); tt=setTimeout(()=>{e.className='toast';},3000);
 }
 
+// ── UNDO / REDO ───────────────────────────────────────────────────
+// Each entry: { type: 'add'|'edit'|'delete', before, after }
+const undoStack = [], redoStack = [];
+const MAX_HISTORY = 30;
+
+function pushUndo(entry) {
+  undoStack.push(entry);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0; // clear redo on new action
+  updateUndoRedoBtns();
+}
+
+function updateUndoRedoBtns() {
+  document.getElementById('btn-undo').disabled = undoStack.length === 0;
+  document.getElementById('btn-redo').disabled = redoStack.length === 0;
+}
+
+async function undo() {
+  if (!undoStack.length) return;
+  const entry = undoStack.pop();
+  redoStack.push(entry);
+  setSyncStatus('loading', 'Αναίρεση…');
+  try {
+    if (entry.type === 'add') {
+      // undo add = delete
+      await sbDelete(entry.after.id);
+      data = data.filter(x => x.id !== entry.after.id);
+    } else if (entry.type === 'delete') {
+      // undo delete = re-insert (without id, let db assign)
+      const { id, ...row } = entry.before;
+      const [inserted] = await sbInsert(row);
+      data.unshift(inserted);
+    } else if (entry.type === 'edit') {
+      // undo edit = restore before state
+      const { id, ...row } = entry.before;
+      const [updated] = await sbUpdate(entry.before.id, row);
+      const idx = data.findIndex(x => x.id === entry.before.id);
+      if (idx >= 0) data[idx] = updated;
+    }
+    render(); setSyncStatus('ok', 'Αναιρέθηκε ✓'); toast('Αναίρεση εκτελέστηκε');
+  } catch(e) {
+    setSyncStatus('err', 'Σφάλμα'); toast('Σφάλμα αναίρεσης: ' + e.message, true);
+  }
+  updateUndoRedoBtns();
+}
+
+async function redo() {
+  if (!redoStack.length) return;
+  const entry = redoStack.pop();
+  undoStack.push(entry);
+  setSyncStatus('loading', 'Επανάληψη…');
+  try {
+    if (entry.type === 'add') {
+      const { id, ...row } = entry.after;
+      const [inserted] = await sbInsert(row);
+      data.unshift(inserted);
+    } else if (entry.type === 'delete') {
+      await sbDelete(entry.before.id);
+      data = data.filter(x => x.id !== entry.before.id);
+    } else if (entry.type === 'edit') {
+      const { id, ...row } = entry.after;
+      const [updated] = await sbUpdate(entry.after.id, row);
+      const idx = data.findIndex(x => x.id === entry.after.id);
+      if (idx >= 0) data[idx] = updated;
+    }
+    render(); setSyncStatus('ok', 'Επαναλήφθηκε ✓'); toast('Επανάληψη εκτελέστηκε');
+  } catch(e) {
+    setSyncStatus('err', 'Σφάλμα'); toast('Σφάλμα επανάληψης: ' + e.message, true);
+  }
+  updateUndoRedoBtns();
+}
+
+// keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+});
+
 // ── PASSWORD GATE ─────────────────────────────────────────────────
-const PW_HASH = '6a396c5a067a36c937ef23e9a6164280be68daa3df1a8d0cdee91c0492d98ef7'; // hashed password
+const PW_HASH = '6a396c5a067a36c937ef23e9a6164280be68daa3df1a8d0cdee91c0492d98ef7';
 
 async function hashStr(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -819,16 +919,7 @@ async function confirmPassword() {
   if (hashed === PW_HASH) {
     sessionStorage.setItem('emvolia_pw', '1');
     document.getElementById('pw-gate-bg').style.display = 'none';
-    // now show name gate or proceed
-    const savedName = sessionStorage.getItem('emvolia_user');
-    if (savedName) {
-      currentUser = savedName;
-      document.getElementById('user-chip-name').textContent = savedName;
-      document.getElementById('gate-bg').style.display = 'none';
-      loadData();
-    } else {
-      setTimeout(() => document.getElementById('gate-name').focus(), 100);
-    }
+    showNameGateOrProceed();
   } else {
     const err = document.getElementById('pw-error');
     err.textContent = 'Λάθος κωδικός. Προσπαθήστε ξανά.';
@@ -838,21 +929,63 @@ async function confirmPassword() {
   }
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
-toggleOrdered(''); toggleFridge('');
-// check password first, then name
-if (sessionStorage.getItem('emvolia_pw') === '1') {
-  document.getElementById('pw-gate-bg').style.display = 'none';
+// ── NAME GATE ─────────────────────────────────────────────────────
+function showNameGateOrProceed() {
   const savedName = sessionStorage.getItem('emvolia_user');
   if (savedName) {
     currentUser = savedName;
     document.getElementById('user-chip-name').textContent = savedName;
     document.getElementById('gate-bg').style.display = 'none';
     loadData();
-  } else {
-    setTimeout(() => document.getElementById('gate-name').focus(), 100);
   }
+  // else: name gate already visible, wait for user
+}
+
+function selectPresetName(name) {
+  sessionStorage.setItem('emvolia_user', name);
+  currentUser = name;
+  document.getElementById('user-chip-name').textContent = name;
+  document.getElementById('gate-bg').style.display = 'none';
+  loadData();
+}
+
+function toggleOtherName() {
+  const wrap = document.getElementById('other-name-wrap');
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  if (wrap.style.display === 'block') setTimeout(() => document.getElementById('gate-name').focus(), 50);
+}
+
+function confirmOtherName() {
+  const name = document.getElementById('gate-name').value.trim();
+  if (!name) {
+    document.getElementById('name-error').textContent = 'Εισάγετε ένα όνομα.';
+    setTimeout(() => { document.getElementById('name-error').textContent = ''; }, 2500);
+    return;
+  }
+  selectPresetName(name);
+}
+
+function changeUser() {
+  // reset session so name gate shows again
+  sessionStorage.removeItem('emvolia_user');
+  currentUser = '';
+  // reset gate UI
+  document.getElementById('other-name-wrap').style.display = 'none';
+  document.getElementById('gate-name').value = '';
+  document.getElementById('gate-bg').style.display = 'flex';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+toggleOrdered(''); toggleFridge(''); updateUndoRedoBtns();
+
+// Always check password on every page load — never skip it
+// sessionStorage is tab-scoped so new tabs always ask again
+if (sessionStorage.getItem('emvolia_pw') === '1') {
+  document.getElementById('pw-gate-bg').style.display = 'none';
+  showNameGateOrProceed();
 } else {
+  // show password gate, hide name gate until after password
+  document.getElementById('gate-bg').style.display = 'none';
   setTimeout(() => document.getElementById('pw-input').focus(), 100);
 }
 </script>
