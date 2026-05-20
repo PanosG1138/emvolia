@@ -100,7 +100,31 @@ textarea{resize:vertical;min-height:40px;font-size:11px}
 .btn-tool{padding:5px 11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;white-space:nowrap;transition:border-color 0.15s,color 0.15s}
 .btn-tool:hover{border-color:var(--accent);color:var(--accent)}
 
-/* ── TABLE ── */
+/* ── BATCH ── */
+.batch-bar{display:none;align-items:center;gap:10px;padding:8px 14px;background:#1a1400;border:1px solid rgba(255,170,0,0.35);border-radius:var(--rs);flex-wrap:wrap}
+.batch-bar.visible{display:flex}
+.batch-count{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--amber);white-space:nowrap}
+.batch-sep{width:1px;height:16px;background:var(--border2)}
+.btn-batch{padding:5px 12px;border-radius:var(--rs);border:1px solid rgba(255,170,0,0.4);background:rgba(255,170,0,0.1);color:var(--amber);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.btn-batch:hover{background:rgba(255,170,0,0.2);border-color:var(--amber)}
+.btn-batch.danger{border-color:rgba(255,68,68,0.4);background:rgba(255,68,68,0.1);color:var(--red)}
+.btn-batch.danger:hover{background:rgba(255,68,68,0.2);border-color:var(--red)}
+.btn-batch.clear{border-color:var(--border);background:transparent;color:var(--muted)}
+.btn-batch.clear:hover{border-color:var(--muted);color:var(--text)}
+/* row checkbox */
+td.cb-cell,th.cb-cell{width:32px;padding:6px 8px;text-align:center}
+input[type=checkbox]{width:14px;height:14px;accent-color:var(--amber);cursor:pointer}
+tbody tr.selected{background:rgba(255,170,0,0.05)!important}
+/* batch edit modal field toggles */
+.batch-field-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.batch-field-row{display:grid;grid-template-columns:20px 1fr 1fr;align-items:center;gap:10px}
+.batch-field-row input[type=checkbox]{margin:0}
+.batch-field-row label{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);cursor:pointer}
+.batch-field-row label.active{color:var(--accent)}
+.batch-field-row .field-input{opacity:0.3;pointer-events:none;transition:opacity 0.15s}
+.batch-field-row.enabled .field-input{opacity:1;pointer-events:all}
+.batch-modal-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--amber);margin-bottom:4px}
+.batch-modal-sub{font-size:11px;color:var(--muted);margin-bottom:16px}
 .tbl-outer{overflow:auto;border:1px solid var(--border);border-radius:var(--r);flex:1}
 .tbl-scaler{transform-origin:top left;transform:scale(var(--zoom));width:calc(100% / var(--zoom))}
 table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
@@ -343,10 +367,20 @@ td.meta-cell{max-width:120px}
     <button class="btn-tool" onclick="exportCSV()">↓ CSV</button>
   </div>
 
+  <!-- BATCH ACTION BAR -->
+  <div class="batch-bar" id="batch-bar">
+    <span class="batch-count" id="batch-count">0 επιλεγμένα</span>
+    <div class="batch-sep"></div>
+    <button class="btn-batch" onclick="batchEdit()">✎ Μαζική Επεξεργασία</button>
+    <button class="btn-batch danger" onclick="batchDelete()">✕ Μαζική Διαγραφή</button>
+    <button class="btn-batch clear" onclick="clearSelection()">Αποεπιλογή</button>
+  </div>
+
   <div class="tbl-outer">
     <div class="tbl-scaler" id="tbl-scaler">
       <table>
         <thead><tr>
+          <th class="cb-cell"><input type="checkbox" id="cb-all" onchange="toggleSelectAll(this.checked)" title="Επιλογή όλων"></th>
           <th onclick="sortBy('hm_ekk')">Ημ. Εκκόλαψης<span class="arr" id="s-hm_ekk"></span></th>
           <th onclick="sortBy('hm_emv')">Ημ. Εμβολιασμού<span class="arr" id="s-hm_emv"></span></th>
           <th onclick="sortBy('hm_paragelia')">Ημ. Παραγγελίας<span class="arr" id="s-hm_paragelia"></span></th>
@@ -414,6 +448,31 @@ td.meta-cell{max-width:120px}
     <div class="modal-actions" style="justify-content:center">
       <button class="btn-secondary" onclick="closeConfirm()">Ακύρωση</button>
       <button class="btn-primary" style="background:var(--red);color:#fff" id="btn-confirm-del" onclick="confirmDelete()">Διαγραφή</button>
+    </div>
+  </div>
+</div>
+
+<!-- BATCH EDIT MODAL -->
+<div id="batch-modal-bg" class="modal-bg" style="display:none" onclick="if(event.target===this)closeBatchModal()">
+  <div class="modal" style="width:580px">
+    <div class="batch-modal-title">✎ Μαζική Επεξεργασία</div>
+    <div class="batch-modal-sub" id="batch-modal-sub">0 εγγραφές επιλεγμένες</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:14px">Ενεργοποιήστε τα πεδία που θέλετε να αλλάξετε. Τα ανενεργά πεδία δεν θα τροποποιηθούν.</p>
+    <div class="batch-field-list" id="batch-field-list"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeBatchModal()">Ακύρωση</button>
+      <button class="btn-primary" style="background:var(--amber);color:#000" id="btn-batch-save" onclick="saveBatchEdit()">Εφαρμογή σε όλα</button>
+    </div>
+  </div>
+</div>
+
+<!-- BATCH DELETE CONFIRM -->
+<div id="batch-del-bg" class="modal-bg" style="display:none" onclick="if(event.target===this)closeBatchDel()">
+  <div class="confirm-box">
+    <p>Διαγραφή <span id="batch-del-count" style="color:var(--red);font-weight:700"></span> εγγραφών;<br><span style="font-size:11px">Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.</span></p>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="btn-secondary" onclick="closeBatchDel()">Ακύρωση</button>
+      <button class="btn-primary" style="background:var(--red);color:#fff" id="btn-batch-del-confirm" onclick="confirmBatchDelete()">Διαγραφή όλων</button>
     </div>
   </div>
 </div>
@@ -499,6 +558,7 @@ async function loadData() {
   setSyncStatus('loading', 'Φόρτωση…');
   try {
     data = await sbSelect();
+    selectedIds.clear();
     setSyncStatus('ok', 'Συνδέθηκε ✓');
     render();
   } catch (e) {
@@ -748,7 +808,6 @@ function render() {
     const tr = document.createElement('tr');
     if (r._new) { tr.classList.add('new-row'); delete r._new; }
     const ord = r.paragelia==='ΝΑΙ', fri = r.psygeio==='ΝΑΙ';
-    const notes = [r.sxolia,r.sxolia2].filter(Boolean).join(' · ')||'—';
 
     // meta cell: created vs updated
     let metaHtml = '';
@@ -765,6 +824,7 @@ function render() {
     }
 
     tr.innerHTML =
+      `<td class="cb-cell"><input type="checkbox" class="row-cb" data-id="${r.id}" onchange="onRowCheck(${r.id},this.checked)"></td>`+
       `<td>${fmt(r.hm_ekk)}</td>`+
       `<td>${fmt(r.hm_emv)}</td>`+
       `<td style="color:${r.hm_paragelia?'var(--amber)':'var(--dim)'}">${fmt(r.hm_paragelia)||'—'}</td>`+
@@ -851,20 +911,30 @@ async function undo() {
   setSyncStatus('loading', 'Αναίρεση…');
   try {
     if (entry.type === 'add') {
-      // undo add = delete
       await sbDelete(entry.after.id);
       data = data.filter(x => x.id !== entry.after.id);
     } else if (entry.type === 'delete') {
-      // undo delete = re-insert (without id, let db assign)
       const { id, ...row } = entry.before;
       const [inserted] = await sbInsert(row);
       data.unshift(inserted);
     } else if (entry.type === 'edit') {
-      // undo edit = restore before state
       const { id, ...row } = entry.before;
       const [updated] = await sbUpdate(entry.before.id, row);
       const idx = data.findIndex(x => x.id === entry.before.id);
       if (idx >= 0) data[idx] = updated;
+    } else if (entry.type === 'batch-edit') {
+      await Promise.all(entry.beforeSnapshots.map(snap => {
+        const { id, ...row } = snap; return sbUpdate(id, row);
+      }));
+      entry.beforeSnapshots.forEach(snap => {
+        const idx = data.findIndex(x => x.id === snap.id);
+        if (idx >= 0) data[idx] = { ...snap };
+      });
+    } else if (entry.type === 'batch-delete') {
+      const inserted = await Promise.all(entry.beforeSnapshots.map(snap => {
+        const { id, ...row } = snap; return sbInsert(row).then(r => r[0]);
+      }));
+      inserted.forEach(r => data.unshift(r));
     }
     render(); setSyncStatus('ok', 'Αναιρέθηκε ✓'); toast('Αναίρεση εκτελέστηκε');
   } catch(e) {
@@ -891,6 +961,15 @@ async function redo() {
       const [updated] = await sbUpdate(entry.after.id, row);
       const idx = data.findIndex(x => x.id === entry.after.id);
       if (idx >= 0) data[idx] = updated;
+    } else if (entry.type === 'batch-edit') {
+      await Promise.all(entry.ids.map(id => sbUpdate(id, entry.updates)));
+      entry.ids.forEach(id => {
+        const idx = data.findIndex(x => x.id === id);
+        if (idx >= 0) data[idx] = { ...data[idx], ...entry.updates };
+      });
+    } else if (entry.type === 'batch-delete') {
+      await Promise.all(entry.ids.map(id => sbDelete(id)));
+      data = data.filter(x => !entry.ids.includes(x.id));
     }
     render(); setSyncStatus('ok', 'Επαναλήφθηκε ✓'); toast('Επανάληψη εκτελέστηκε');
   } catch(e) {
@@ -975,7 +1054,181 @@ function changeUser() {
   document.getElementById('gate-bg').style.display = 'flex';
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
+// ── BATCH SELECTION ───────────────────────────────────────────────
+let selectedIds = new Set();
+
+function onRowCheck(id, checked) {
+  if (checked) selectedIds.add(id); else selectedIds.delete(id);
+  updateBatchBar();
+  // update row highlight
+  const cb = document.querySelector(`.row-cb[data-id="${id}"]`);
+  if (cb) cb.closest('tr').classList.toggle('selected', checked);
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.row-cb').forEach(cb => {
+    const id = parseInt(cb.dataset.id);
+    cb.checked = checked;
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
+    cb.closest('tr').classList.toggle('selected', checked);
+  });
+  updateBatchBar();
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.row-cb').forEach(cb => { cb.checked = false; cb.closest('tr').classList.remove('selected'); });
+  document.getElementById('cb-all').checked = false;
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const n = selectedIds.size;
+  const bar = document.getElementById('batch-bar');
+  bar.classList.toggle('visible', n > 0);
+  document.getElementById('batch-count').textContent = n + ' επιλεγμέν' + (n === 1 ? 'η' : 'ες');
+}
+
+// ── BATCH EDIT ────────────────────────────────────────────────────
+// Field definitions: { key, label, type, options? }
+const BATCH_FIELDS = [
+  { key:'emvolio',      label:'Εμβόλιο',          type:'text'   },
+  { key:'hm_ekk',       label:'Ημ. Εκκόλαψης',    type:'date'   },
+  { key:'hm_emv',       label:'Ημ. Εμβολιασμού',  type:'date'   },
+  { key:'hm_paragelia', label:'Ημ. Παραγγελίας',  type:'date'   },
+  { key:'hm_par',       label:'Ημ. Παράδοσης',    type:'date'   },
+  { key:'anath',        label:'Αναθρεπτήριο',      type:'select', options:['','Θ1','Θ2','Θ3','Θ4','Α1'] },
+  { key:'posotita',     label:'Ποσότητα',          type:'text'   },
+  { key:'pelatis',      label:'Πελάτης',           type:'text'   },
+  { key:'paragelia',    label:'Παραγγελία',        type:'select', options:['','ΝΑΙ'] },
+  { key:'psygeio',      label:'Ψυγείο',            type:'select', options:['','ΝΑΙ'] },
+  { key:'promitheutis', label:'Προμηθευτής',       type:'text'   },
+  { key:'sxolia_panos', label:'Σχόλια Πάνος',      type:'text'   },
+  { key:'sxolia_eleni', label:'Σχόλια Ελένη',      type:'text'   },
+];
+
+function batchEdit() {
+  if (!selectedIds.size) return;
+  document.getElementById('batch-modal-sub').textContent = selectedIds.size + ' εγγραφές επιλεγμένες';
+
+  // build field rows
+  const list = document.getElementById('batch-field-list');
+  list.innerHTML = '';
+  BATCH_FIELDS.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'batch-field-row';
+    row.id = 'bfr-' + f.key;
+
+    let inputHtml;
+    if (f.type === 'select') {
+      inputHtml = `<select class="field-input" id="bf-${f.key}">${f.options.map(o=>`<option value="${o}">${o||'—'}</option>`).join('')}</select>`;
+    } else if (f.type === 'date') {
+      inputHtml = `<input type="date" class="field-input" id="bf-${f.key}">`;
+    } else {
+      inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="Νέα τιμή…">`;
+    }
+
+    row.innerHTML =
+      `<input type="checkbox" id="bfc-${f.key}" onchange="toggleBatchField('${f.key}',this.checked)">` +
+      `<label for="bfc-${f.key}" id="bfl-${f.key}">${f.label}</label>` +
+      inputHtml;
+    list.appendChild(row);
+  });
+
+  document.getElementById('batch-modal-bg').style.display = 'flex';
+}
+
+function toggleBatchField(key, enabled) {
+  const row = document.getElementById('bfr-' + key);
+  const lbl = document.getElementById('bfl-' + key);
+  row.classList.toggle('enabled', enabled);
+  lbl.classList.toggle('active', enabled);
+}
+
+function closeBatchModal() { document.getElementById('batch-modal-bg').style.display = 'none'; }
+
+async function saveBatchEdit() {
+  // collect enabled fields
+  const updates = {};
+  BATCH_FIELDS.forEach(f => {
+    const cb = document.getElementById('bfc-' + f.key);
+    if (cb && cb.checked) {
+      const val = document.getElementById('bf-' + f.key).value;
+      updates[f.key] = val || null;
+    }
+  });
+
+  if (!Object.keys(updates).length) { toast('Δεν επιλέχθηκε κανένα πεδίο.', true); return; }
+
+  const now = new Date().toISOString();
+  updates.updated_by = currentUser;
+  updates.updated_at = now;
+
+  const btn = document.getElementById('btn-batch-save');
+  btn.disabled = true; btn.textContent = 'Αποθήκευση…';
+  setSyncStatus('loading', 'Μαζική αποθήκευση…');
+
+  const ids = [...selectedIds];
+  let successCount = 0;
+  const beforeSnapshots = ids.map(id => ({ ...data.find(r => r.id === id) }));
+
+  try {
+    // fire all updates in parallel
+    await Promise.all(ids.map(id => sbUpdate(id, updates)));
+    await Promise.all(ids.map(id => sbHInsert({ row_id: id, action: 'edited', user_name: currentUser, ts: now })));
+
+    // apply to local data
+    ids.forEach(id => {
+      const idx = data.findIndex(r => r.id === id);
+      if (idx >= 0) { data[idx] = { ...data[idx], ...updates }; successCount++; }
+    });
+
+    // push single undo entry for entire batch
+    pushUndo({ type: 'batch-edit', ids, beforeSnapshots, updates: { ...updates } });
+
+    closeBatchModal(); clearSelection(); render();
+    setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
+    toast(`Ενημερώθηκαν ${successCount} εγγραφές`);
+  } catch(e) {
+    setSyncStatus('err', 'Σφάλμα');
+    toast('Σφάλμα: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Εφαρμογή σε όλα';
+  }
+}
+
+// ── BATCH DELETE ──────────────────────────────────────────────────
+function batchDelete() {
+  if (!selectedIds.size) return;
+  document.getElementById('batch-del-count').textContent = selectedIds.size;
+  document.getElementById('batch-del-bg').style.display = 'flex';
+}
+function closeBatchDel() { document.getElementById('batch-del-bg').style.display = 'none'; }
+
+async function confirmBatchDelete() {
+  const btn = document.getElementById('btn-batch-del-confirm');
+  btn.disabled = true; btn.textContent = 'Διαγραφή…';
+  setSyncStatus('loading', 'Μαζική διαγραφή…');
+
+  const ids = [...selectedIds];
+  const beforeSnapshots = ids.map(id => ({ ...data.find(r => r.id === id) }));
+
+  try {
+    await Promise.all(ids.map(id => sbDelete(id)));
+    pushUndo({ type: 'batch-delete', ids, beforeSnapshots });
+    data = data.filter(r => !ids.includes(r.id));
+    closeBatchDel(); clearSelection(); render();
+    setSyncStatus('ok', 'Διαγράφηκαν ✓');
+    toast(`Διαγράφηκαν ${ids.length} εγγραφές`);
+  } catch(e) {
+    setSyncStatus('err', 'Σφάλμα');
+    toast('Σφάλμα: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Διαγραφή όλων';
+  }
+}
+
+
 toggleOrdered(''); toggleFridge(''); updateUndoRedoBtns();
 
 // Always check password on every page load — never skip it
