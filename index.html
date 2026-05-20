@@ -168,6 +168,7 @@ td.meta-cell{max-width:120px}
 .name-gate p{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6}
 .name-gate input{text-align:center;font-size:14px;padding:10px;margin-bottom:12px;letter-spacing:0.05em}
 .name-gate .btn-primary{width:100%;padding:10px;font-size:13px}
+.gate-error{font-size:11px;color:var(--red);margin-top:8px;min-height:16px}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:18px;right:18px;background:var(--surface);border:1px solid var(--border2);color:var(--accent);padding:9px 16px;border-radius:var(--rs);font-family:'Syne',sans-serif;font-weight:600;font-size:12px;z-index:999;transform:translateY(70px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;max-width:300px}
@@ -176,6 +177,17 @@ td.meta-cell{max-width:120px}
 </style>
 </head>
 <body>
+
+<!-- PASSWORD GATE -->
+<div id="pw-gate-bg" class="modal-bg">
+  <div class="name-gate">
+    <h2>ΕΜΒΟΛΙΑ</h2>
+    <p>Παρακολούθηση Παραγγελιών<br>Εισάγετε τον κωδικό πρόσβασης.</p>
+    <div class="fgroup"><input type="password" id="pw-input" placeholder="Κωδικός…" onkeydown="if(event.key==='Enter')confirmPassword()"></div>
+    <button class="btn-primary" onclick="confirmPassword()">Είσοδος</button>
+    <div class="gate-error" id="pw-error"></div>
+  </div>
+</div>
 
 <!-- NAME GATE -->
 <div id="gate-bg" class="modal-bg">
@@ -793,17 +805,55 @@ function toast(msg, err=false) {
   clearTimeout(tt); tt=setTimeout(()=>{e.className='toast';},3000);
 }
 
+// ── PASSWORD GATE ─────────────────────────────────────────────────
+const PW_HASH = '6a396c5a067a36c937ef23e9a6164280be68daa3df1a8d0cdee91c0492d98ef7'; // hashed password
+
+async function hashStr(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function confirmPassword() {
+  const val = document.getElementById('pw-input').value;
+  const hashed = await hashStr(val);
+  if (hashed === PW_HASH) {
+    sessionStorage.setItem('emvolia_pw', '1');
+    document.getElementById('pw-gate-bg').style.display = 'none';
+    // now show name gate or proceed
+    const savedName = sessionStorage.getItem('emvolia_user');
+    if (savedName) {
+      currentUser = savedName;
+      document.getElementById('user-chip-name').textContent = savedName;
+      document.getElementById('gate-bg').style.display = 'none';
+      loadData();
+    } else {
+      setTimeout(() => document.getElementById('gate-name').focus(), 100);
+    }
+  } else {
+    const err = document.getElementById('pw-error');
+    err.textContent = 'Λάθος κωδικός. Προσπαθήστε ξανά.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+    setTimeout(() => { err.textContent = ''; }, 3000);
+  }
+}
+
 // ── INIT ──────────────────────────────────────────────────────────
 toggleOrdered(''); toggleFridge('');
-// restore session name if exists
-const savedName = sessionStorage.getItem('emvolia_user');
-if (savedName) {
-  currentUser = savedName;
-  document.getElementById('user-chip-name').textContent = savedName;
-  document.getElementById('gate-bg').style.display = 'none';
-  loadData();
+// check password first, then name
+if (sessionStorage.getItem('emvolia_pw') === '1') {
+  document.getElementById('pw-gate-bg').style.display = 'none';
+  const savedName = sessionStorage.getItem('emvolia_user');
+  if (savedName) {
+    currentUser = savedName;
+    document.getElementById('user-chip-name').textContent = savedName;
+    document.getElementById('gate-bg').style.display = 'none';
+    loadData();
+  } else {
+    setTimeout(() => document.getElementById('gate-name').focus(), 100);
+  }
 } else {
-  setTimeout(() => document.getElementById('gate-name').focus(), 100);
+  setTimeout(() => document.getElementById('pw-input').focus(), 100);
 }
 </script>
 </body>
