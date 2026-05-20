@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ΕΜΒΟΛΙΑ — Παρακολούθηση Παραγγελιών</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#000000;--surface:#0a0a0a;--surface2:#111111;--surface3:#1a1a1a;
+  --border:#2a2a2a;--border2:#333333;
+  --accent:#ffffff;--accent-dim:rgba(255,255,255,0.06);--accent-glow:rgba(255,255,255,0.12);
+  --text:#ffffff;--muted:#666666;--dim:#333333;
+  --red:#ff4444;--amber:#ffaa00;--green:#00cc66;
+  --r:8px;--rs:5px;--zoom:1;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;line-height:1.5;overflow-x:hidden}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:var(--sidebar-w,300px) 1fr;grid-template-rows:auto 1fr;min-height:100vh;transition:grid-template-columns 0.25s ease}
+.shell.collapsed{--sidebar-w:0px}
+
+/* ── HEADER ── */
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--bg);gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+.header-left{display:flex;align-items:center;gap:12px}
+.sidebar-toggle{width:30px;height:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;border:1px solid var(--border);border-radius:var(--rs);background:var(--surface2);flex-shrink:0;transition:border-color 0.15s}
+.sidebar-toggle:hover{border-color:var(--accent)}
+.sidebar-toggle span{display:block;width:14px;height:1.5px;background:var(--muted);transition:all 0.25s;transform-origin:center}
+.shell.collapsed .sidebar-toggle span:nth-child(1){transform:translateY(3.25px) rotate(45deg);background:var(--accent)}
+.shell.collapsed .sidebar-toggle span:nth-child(2){opacity:0;transform:scaleX(0)}
+.shell.collapsed .sidebar-toggle span:nth-child(3){transform:translateY(-3.25px) rotate(-45deg);background:var(--accent)}
+.logo{display:flex;align-items:baseline;gap:8px}
+.logo-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--accent);letter-spacing:-0.5px}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hstats{display:flex;gap:16px}
+.hstat{text-align:right}
+.hstat-val{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--accent)}
+.hstat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em}
+.zoom-ctrl{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;background:var(--surface2)}
+.zoom-ctrl label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap}
+.zoom-ctrl input[type=range]{width:80px;accent-color:var(--accent);cursor:pointer}
+.zoom-val{font-size:10px;color:var(--accent);min-width:30px;text-align:right}
+.sync-badge{display:flex;align-items:center;gap:5px;font-size:10px;padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);white-space:nowrap;transition:all 0.3s}
+.sync-badge.ok{border-color:rgba(0,204,102,0.4);color:var(--green);background:rgba(0,204,102,0.07)}
+.sync-badge.err{border-color:rgba(255,68,68,0.4);color:var(--red);background:rgba(255,68,68,0.07)}
+.sync-badge.loading{border-color:rgba(255,170,0,0.4);color:var(--amber);background:rgba(255,170,0,0.07)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.sync-badge.loading .sync-dot{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
+
+/* user chip */
+.user-chip{display:flex;align-items:center;gap:6px;border:1px solid var(--border2);border-radius:99px;padding:4px 10px;background:var(--surface2);font-size:11px;color:var(--muted);cursor:pointer;transition:border-color 0.15s}
+.user-chip:hover{border-color:var(--accent);color:var(--accent)}
+.user-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+
+/* ── SIDEBAR ── */
+.sidebar{grid-column:1;background:var(--surface);border-right:1px solid var(--border);overflow:hidden;max-height:calc(100vh - 53px);position:sticky;top:53px;transition:all 0.25s ease;display:flex;flex-direction:column}
+.shell.collapsed .sidebar{border-right:none}
+.sidebar-inner{padding:14px 16px;overflow-y:auto;flex:1;min-width:300px}
+.form-heading{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px}
+.form-heading span{color:var(--accent)}
+.steps{display:flex;align-items:center;margin-bottom:14px}
+.step-dot{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:9px;color:var(--muted);background:var(--surface2);flex-shrink:0;transition:all 0.2s}
+.step-dot.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.step-dot.done{border-color:var(--accent);background:var(--accent);color:var(--bg)}
+.step-line{flex:1;height:1px;background:var(--border2);transition:background 0.3s}
+.step-line.done{background:var(--accent)}
+.sec-label{font-size:9px;text-transform:uppercase;letter-spacing:0.12em;color:var(--dim);margin:10px 0 6px}
+.fgroup{margin-bottom:7px}
+.fgroup label{display:flex;justify-content:space-between;align-items:center;font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:3px}
+.calc-badge{font-size:8px;background:var(--accent-dim);color:var(--accent);border:1px solid var(--border2);border-radius:3px;padding:1px 4px}
+input[type=date],input[type=text],select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:5px 8px;outline:none;transition:border-color 0.15s,box-shadow 0.15s;appearance:none;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;cursor:pointer}
+textarea{resize:vertical;min-height:40px;font-size:11px}
+.calc-field{background:var(--accent-dim)!important;border-color:var(--border2)!important;color:var(--accent)!important;font-weight:500}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.divider{height:1px;background:var(--border);margin:10px 0}
+.toggle-group{display:flex;gap:4px}
+.toggle-btn{flex:1;padding:5px 4px;border-radius:var(--rs);border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;text-align:center;transition:all 0.15s}
+.toggle-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.btn-submit{width:100%;padding:9px;background:var(--accent);color:var(--bg);border:none;border-radius:var(--rs);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:6px;transition:opacity 0.15s;letter-spacing:0.03em}
+.btn-submit:hover{opacity:0.85}
+.btn-submit:disabled{opacity:0.3;cursor:not-allowed}
+.btn-cancel{width:100%;padding:6px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;margin-top:4px;transition:border-color 0.15s,color 0.15s}
+.btn-cancel:hover{border-color:var(--muted);color:var(--text)}
+
+/* ── MAIN ── */
+.main{grid-column:2;padding:14px 18px;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:160px}
+.search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search-wrap input{padding-left:28px}
+.filter-sel{width:auto;min-width:110px}
+.btn-tool{padding:5px 11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;white-space:nowrap;transition:border-color 0.15s,color 0.15s}
+.btn-tool:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── TABLE ── */
+.tbl-outer{overflow:auto;border:1px solid var(--border);border-radius:var(--r);flex:1}
+.tbl-scaler{transform-origin:top left;transform:scale(var(--zoom));width:calc(100% / var(--zoom))}
+table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+th{padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);cursor:pointer;user-select:none;font-weight:500}
+th:hover{color:var(--text)}
+th .arr{font-size:9px;margin-left:2px}
+tbody tr{border-bottom:1px solid var(--border);transition:background 0.1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+tbody tr.new-row{animation:rowIn 0.5s ease}
+@keyframes rowIn{from{background:rgba(255,255,255,0.08)}to{background:transparent}}
+td{padding:6px 10px;color:var(--text);max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+td.vacc{font-family:'Syne',sans-serif;font-weight:600;font-size:12px}
+td.meta-cell{max-width:120px}
+.badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:500}
+.b-yes{background:rgba(0,204,102,0.1);color:var(--green);border:1px solid rgba(0,204,102,0.25)}
+.b-no{background:var(--surface2);color:var(--dim);border:1px solid var(--border)}
+.b-flock{background:rgba(255,255,255,0.06);color:var(--accent);border:1px solid var(--border2)}
+.b-pending{background:rgba(255,170,0,0.1);color:var(--amber);border:1px solid rgba(255,170,0,0.25)}
+.row-actions{display:flex;gap:4px;justify-content:flex-end}
+.row-btn{padding:3px 8px;border-radius:4px;border:1px solid rgba(255,170,0,0.35);background:rgba(255,170,0,0.08);color:var(--amber);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.12s;white-space:nowrap}
+.row-btn:hover{border-color:var(--amber);background:rgba(255,170,0,0.18);color:#ffd060}
+.row-btn.del{border-color:rgba(255,68,68,0.35);background:rgba(255,68,68,0.08);color:var(--red)}
+.row-btn.del:hover{border-color:var(--red);background:rgba(255,68,68,0.18);color:#ff6666}
+.empty-state{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}
+
+/* meta info in cell */
+.meta-info{display:flex;flex-direction:column;gap:1px}
+.meta-user{font-size:10px;color:var(--accent);font-weight:500}
+.meta-date{font-size:9px;color:var(--muted)}
+.meta-edited{font-size:9px;color:var(--amber)}
+
+/* ── MODALS ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(3px)}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:22px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h3{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px;color:var(--accent)}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mgrid .full{grid-column:1/-1}
+.modal .fgroup label{font-size:11px;color:#aaaaaa;letter-spacing:0.06em;margin-bottom:4px}
+.modal .fgroup input,.modal .fgroup select,.modal .fgroup textarea{font-size:13px;padding:7px 10px;color:#ffffff;background:#1a1a1a;border-color:#444444}
+.modal .fgroup input:focus,.modal .fgroup select:focus{border-color:#ffffff;box-shadow:0 0 0 2px rgba(255,255,255,0.1)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.btn-primary{padding:8px 18px;background:var(--accent);color:var(--bg);border:none;border-radius:var(--rs);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:opacity 0.15s}
+.btn-primary:hover{opacity:0.85}
+.btn-primary:disabled{opacity:0.3;cursor:not-allowed}
+.btn-secondary{padding:8px 18px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;transition:border-color 0.15s,color 0.15s}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.confirm-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:24px;width:320px;text-align:center}
+.confirm-box p{color:var(--muted);font-size:13px;margin-bottom:16px}
+.confirm-name{color:var(--red);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;display:block;margin:6px 0}
+
+/* history panel inside edit modal */
+.history-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.history-title{font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px}
+.history-list{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}
+.history-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px}
+.history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.hi-user{font-size:11px;font-weight:500;color:var(--accent)}
+.hi-action{font-size:9px;padding:1px 6px;border-radius:99px;border:1px solid var(--border2)}
+.hi-action.created{color:var(--green);border-color:rgba(0,204,102,0.3)}
+.hi-action.edited{color:var(--amber);border-color:rgba(255,170,0,0.3)}
+.hi-date{font-size:10px;color:var(--muted)}
+
+/* ── NAME GATE MODAL ── */
+.name-gate{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:32px;width:360px;text-align:center}
+.name-gate h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--accent);margin-bottom:6px}
+.name-gate p{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6}
+.name-gate input{text-align:center;font-size:14px;padding:10px;margin-bottom:12px;letter-spacing:0.05em}
+.name-gate .btn-primary{width:100%;padding:10px;font-size:13px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--surface);border:1px solid var(--border2);color:var(--accent);padding:9px 16px;border-radius:var(--rs);font-family:'Syne',sans-serif;font-weight:600;font-size:12px;z-index:999;transform:translateY(70px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{background:rgba(255,68,68,0.1);border-color:rgba(255,68,68,0.4);color:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- NAME GATE -->
+<div id="gate-bg" class="modal-bg">
+  <div class="name-gate">
+    <h2>ΕΜΒΟΛΙΑ</h2>
+    <p>Παρακολούθηση Παραγγελιών<br>Εισάγετε το όνομά σας για να συνεχίσετε.</p>
+    <div class="fgroup"><input type="text" id="gate-name" placeholder="Το όνομά σας…" onkeydown="if(event.key==='Enter')confirmName()"></div>
+    <button class="btn-primary" onclick="confirmName()">Είσοδος</button>
+  </div>
+</div>
+
+<div class="shell" id="shell">
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <div class="sidebar-toggle" onclick="toggleSidebar()" title="Εναλλαγή φόρμας">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="logo">
+      <span class="logo-title">ΕΜΒΟΛΙΑ</span>
+      <span class="logo-sub">Παρακολούθηση Παραγγελιών · 2026</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="sync-badge" class="sync-badge loading"><div class="sync-dot"></div><span id="sync-text">Σύνδεση…</span></div>
+    <div class="zoom-ctrl">
+      <label>Μέγεθος</label>
+      <input type="range" id="zoom-range" min="0.5" max="1.2" step="0.05" value="1" oninput="setZoom(this.value)">
+      <span class="zoom-val" id="zoom-label">100%</span>
+    </div>
+    <div class="hstats">
+      <div class="hstat"><div class="hstat-val" id="stat-total">—</div><div class="hstat-label">Σύνολο</div></div>
+      <div class="hstat"><div class="hstat-val" id="stat-ordered" style="color:var(--green)">—</div><div class="hstat-label">Παραγγέλθηκαν</div></div>
+      <div class="hstat"><div class="hstat-val" id="stat-pending" style="color:var(--amber)">—</div><div class="hstat-label">Εκκρεμείς</div></div>
+    </div>
+    <div class="user-chip" id="user-chip" onclick="changeUser()">
+      <div class="dot"></div>
+      <span id="user-chip-name">—</span>
+    </div>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-inner">
+    <div class="form-heading">+ <span>Νέα Παραγγελία Εμβολίου</span></div>
+    <div class="steps">
+      <div class="step-dot active" id="step1">1</div>
+      <div class="step-line" id="line1"></div>
+      <div class="step-dot" id="step2">2</div>
+      <div class="step-line" id="line2"></div>
+      <div class="step-dot" id="step3">3</div>
+    </div>
+
+    <div class="sec-label">Βήμα 1 — Ημερομηνίες</div>
+    <div class="fgroup">
+      <label>Ημ. Εκκόλαψης <span style="color:var(--dim);font-size:9px">ΗΜ. ΕΚΚ</span></label>
+      <input type="date" id="f-hatch" onchange="onDateChange()">
+    </div>
+    <div class="fgroup">
+      <label>Ημ. Εμβολιασμού <span style="color:var(--dim);font-size:9px">ΗΜ. ΕΜΒ</span></label>
+      <input type="date" id="f-vacc" onchange="onDateChange()">
+    </div>
+    <div class="fgroup">
+      <label>Ημ. Παραγγελίας <span class="calc-badge">ΑΥΤΟ −30 ημ.</span></label>
+      <input type="text" id="f-orderdate" class="calc-field" readonly placeholder="Ορίστε πρώτα ημ. εμβολιασμού…">
+    </div>
+    <div class="fgroup">
+      <label>Ημ. Παράδοσης <span style="color:var(--dim);font-size:9px">ΗΜ. ΠΑΡ</span></label>
+      <input type="date" id="f-deliv">
+    </div>
+
+    <div class="divider"></div>
+    <div class="sec-label">Βήμα 2 — Εμβόλιο &amp; Αναθρεπτήριο</div>
+    <div class="fgroup">
+      <label>Εμβόλιο <span style="color:var(--dim);font-size:9px">ΕΜΒΟΛΙΑ</span></label>
+      <input type="text" id="f-vaccine" list="vaccine-list" placeholder="Πληκτρολογήστε ή επιλέξτε…" oninput="onFieldChange()">
+      <datalist id="vaccine-list">
+        <option value="AVINEW"><option value="AVINEW / CLONE 30"><option value="AVINEW NEO">
+        <option value="BIONEW BI"><option value="BIONEW BI + COR"><option value="Clone30">
+        <option value="CORIPRAVAC"><option value="E.COLI"><option value="GALLIMUNE 407">
+        <option value="GALLIMUNE SE+ST"><option value="IB 4/91"><option value="IB PRIMER">
+        <option value="LASOTA ND"><option value="Ma5"><option value="MG 6/85">
+        <option value="NEMOVAC TRT"><option value="OLVAC B+HG"><option value="POULVAC E.COLI">
+        <option value="RESPIVAC"><option value="SALENVAC ETC"><option value="SALMOVAC">
+        <option value="SG-9R"><option value="TARTYLL"><option value="TS-11">
+        <option value="VAXSAFE"><option value="VECTROMUNE">
+      </datalist>
+    </div>
+    <div class="fgroup">
+      <label>Αναθρεπτήριο <span style="color:var(--dim);font-size:9px">ΑΝΑΘ.</span></label>
+      <select id="f-flock" onchange="onFieldChange()">
+        <option value="">— επιλογή —</option>
+        <option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option>
+      </select>
+    </div>
+
+    <div class="divider"></div>
+    <div class="sec-label">Βήμα 3 — Λεπτομέρειες</div>
+    <div class="row2">
+      <div class="fgroup"><label>Πελάτης</label><input type="text" id="f-customer" placeholder="Προαιρετικό…"></div>
+      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="f-qty" placeholder="π.χ. 75000"></div>
+    </div>
+    <div class="fgroup">
+      <label>Προμηθευτής</label>
+      <input type="text" id="f-supplier" list="supplier-list" placeholder="Προαιρετικό…">
+      <datalist id="supplier-list">
+        <option value="FAENTINA"><option value="Faentina">
+        <option value="ΚΟΜΠΟΥΛΗΣ"><option value="ΤΡΑΙΚΟΥΔΗΣ">
+      </datalist>
+    </div>
+    <div class="fgroup"><label>Σχόλια Πάνος</label><textarea id="f-notes" placeholder="…"></textarea></div>
+    <button class="btn-submit" id="btn-add" onclick="addEntry()">+ Προσθήκη στον Πίνακα</button>
+    <button class="btn-cancel" onclick="resetForm()">Καθαρισμός φόρμας</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search" placeholder="Αναζήτηση εμβολίου, πελάτη, αναθρεπτικής…" oninput="render()">
+    </div>
+    <select class="filter-sel" id="filt-flock" onchange="render()">
+      <option value="">Όλα τα αναθρεπτήρια</option>
+      <option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option>
+    </select>
+    <select class="filter-sel" id="filt-ordered" onchange="render()">
+      <option value="">Όλες οι καταστάσεις</option>
+      <option value="ΝΑΙ">Παραγγελθέντα</option>
+      <option value="-">Εκκρεμείς</option>
+    </select>
+    <button class="btn-tool" onclick="loadData()">↺ Ανανέωση</button>
+    <button class="btn-tool" onclick="exportCSV()">↓ CSV</button>
+  </div>
+
+  <div class="tbl-outer">
+    <div class="tbl-scaler" id="tbl-scaler">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('hm_ekk')">Ημ. Εκκόλαψης<span class="arr" id="s-hm_ekk"></span></th>
+          <th onclick="sortBy('hm_emv')">Ημ. Εμβολιασμού<span class="arr" id="s-hm_emv"></span></th>
+          <th onclick="sortBy('hm_paragelia')">Ημ. Παραγγελίας<span class="arr" id="s-hm_paragelia"></span></th>
+          <th onclick="sortBy('emvolio')">Εμβόλιο<span class="arr" id="s-emvolio"></span></th>
+          <th onclick="sortBy('anath')">Αναθρεπτήριο<span class="arr" id="s-anath"></span></th>
+          <th onclick="sortBy('posotita')">Ποσότητα<span class="arr" id="s-posotita"></span></th>
+          <th onclick="sortBy('pelatis')">Πελάτης<span class="arr" id="s-pelatis"></span></th>
+          <th>Σχόλια Πάνος</th>
+          <th onclick="sortBy('paragelia')">Παραγγελία<span class="arr" id="s-paragelia"></span></th>
+          <th onclick="sortBy('hm_par')">Ημ. Παράδοσης<span class="arr" id="s-hm_par"></span></th>
+          <th>Προμηθευτής</th>
+          <th>Ψυγείο</th>
+          <th>Σχόλια Ελένη</th>
+          <th onclick="sortBy('created_by')">Καταχώρηση<span class="arr" id="s-created_by"></span></th>
+          <th style="text-align:right">Ενέργειες</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty-state" class="empty-state" style="display:none">💉 Δεν βρέθηκαν εγγραφές.</div>
+    </div>
+  </div>
+</main>
+</div><!-- .shell -->
+
+<!-- EDIT MODAL -->
+<div id="modal-bg" class="modal-bg" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Επεξεργασία Παραγγελίας</h3>
+    <div class="mgrid">
+      <div class="fgroup full"><label>Εμβόλιο</label><input type="text" id="m-vaccine" list="vaccine-list"></div>
+      <div class="fgroup"><label>Ημ. Εκκόλαψης</label><input type="date" id="m-hatch"></div>
+      <div class="fgroup"><label>Ημ. Εμβολιασμού</label><input type="date" id="m-vacc" onchange="modalDateChange()"></div>
+      <div class="fgroup"><label>Ημ. Παραγγελίας <span class="calc-badge">ΑΥΤΟ</span></label><input type="text" id="m-orderdate" class="calc-field" readonly></div>
+      <div class="fgroup"><label>Ημ. Παράδοσης</label><input type="date" id="m-deliv"></div>
+      <div class="fgroup"><label>Αναθρεπτήριο</label>
+        <select id="m-flock"><option value="">—</option><option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option></select></div>
+      <div class="fgroup"><label>Πελάτης</label><input type="text" id="m-customer"></div>
+      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="m-qty"></div>
+      <div class="fgroup"><label>Παραγγελία</label>
+        <select id="m-ordered"><option value="">—</option><option value="ΝΑΙ">ΝΑΙ</option></select></div>
+      <div class="fgroup"><label>Ψυγείο</label>
+        <select id="m-fridge"><option value="">—</option><option value="ΝΑΙ">ΝΑΙ</option></select></div>
+      <div class="fgroup"><label>Προμηθευτής</label><input type="text" id="m-supplier" list="supplier-list"></div>
+      <div class="fgroup"><label>Σχόλια Πάνος</label><input type="text" id="m-notes"></div>
+      <div class="fgroup full"><label>Σχόλια Ελένη</label><input type="text" id="m-notes2"></div>
+    </div>
+    <!-- HISTORY -->
+    <div class="history-section">
+      <div class="history-title">Ιστορικό αλλαγών</div>
+      <div class="history-list" id="history-list">
+        <div style="color:var(--muted);font-size:11px">Φόρτωση…</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Ακύρωση</button>
+      <button class="btn-primary" id="btn-save" onclick="saveEdit()">Αποθήκευση</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div id="confirm-bg" class="modal-bg" style="display:none" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-box">
+    <p>Διαγραφή αυτής της παραγγελίας;<span class="confirm-name" id="confirm-name"></span></p>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="btn-secondary" onclick="closeConfirm()">Ακύρωση</button>
+      <button class="btn-primary" style="background:var(--red);color:#fff" id="btn-confirm-del" onclick="confirmDelete()">Διαγραφή</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────
+const SB_URL = 'https://oorhbrphdbigwgizejcc.supabase.co';
+const SB_KEY = 'sb_publishable_1S3L1sNMOjr-YgwGAAD2Kg_X_3S4cTl';
+const TABLE  = 'emvolia';
+const HTABLE = 'emvolia_history';
+
+// ── SUPABASE ──────────────────────────────────────────────────────
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || '',
+      ...opts.headers,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.hint || `HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+const sbSelect  = ()        => sbFetch(`${TABLE}?order=hm_emv.asc`);
+const sbInsert  = row       => sbFetch(TABLE, { method:'POST', prefer:'return=representation', body: JSON.stringify(row) });
+const sbUpdate  = (id, row) => sbFetch(`${TABLE}?id=eq.${id}`, { method:'PATCH', prefer:'return=representation', body: JSON.stringify(row) });
+const sbDelete  = id        => sbFetch(`${TABLE}?id=eq.${id}`, { method:'DELETE' });
+const sbHistory = rowId     => sbFetch(`${HTABLE}?row_id=eq.${rowId}&order=ts.asc`);
+const sbHInsert = entry     => sbFetch(HTABLE, { method:'POST', body: JSON.stringify(entry) });
+
+// ── STATE ─────────────────────────────────────────────────────────
+let data = [], sortCol = 'hm_emv', sortDir = 1;
+let editId = null, deleteId = null, orderedVal = '', fridgeVal = '';
+let currentUser = '';
+
+// ── NAME GATE ─────────────────────────────────────────────────────
+function confirmName() {
+  const name = document.getElementById('gate-name').value.trim();
+  if (!name) { document.getElementById('gate-name').focus(); return; }
+  currentUser = name;
+  sessionStorage.setItem('emvolia_user', name);
+  document.getElementById('gate-bg').style.display = 'none';
+  document.getElementById('user-chip-name').textContent = name;
+  loadData();
+}
+
+function changeUser() {
+  const name = prompt('Αλλαγή ονόματος χρήστη:', currentUser);
+  if (name && name.trim()) {
+    currentUser = name.trim();
+    sessionStorage.setItem('emvolia_user', currentUser);
+    document.getElementById('user-chip-name').textContent = currentUser;
+    toast('Καλώς ήρθες, ' + currentUser + '!');
+  }
+}
+
+// ── SIDEBAR COLLAPSE ──────────────────────────────────────────────
+let sidebarOpen = true;
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('shell').classList.toggle('collapsed', !sidebarOpen);
+}
+
+// ── SYNC STATUS ───────────────────────────────────────────────────
+function setSyncStatus(state, text) {
+  const b = document.getElementById('sync-badge');
+  b.className = 'sync-badge ' + state;
+  document.getElementById('sync-text').textContent = text;
+}
+
+// ── LOAD ──────────────────────────────────────────────────────────
+async function loadData() {
+  setSyncStatus('loading', 'Φόρτωση…');
+  try {
+    data = await sbSelect();
+    setSyncStatus('ok', 'Συνδέθηκε ✓');
+    render();
+  } catch (e) {
+    setSyncStatus('err', 'Σφάλμα σύνδεσης');
+    toast('Σφάλμα φόρτωσης: ' + e.message, true);
+  }
+}
+
+// ── DATES ─────────────────────────────────────────────────────────
+function subDays(iso, n) { const d = new Date(iso); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
+function fmt(iso) { if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; }
+function fmtDt(iso) {
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('el-GR',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' ' +
+         d.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function onDateChange() {
+  const vacc = document.getElementById('f-vacc').value;
+  const el = document.getElementById('f-orderdate');
+  if (vacc) { const od = subDays(vacc,30); el.value = fmt(od); el.dataset.iso = od; }
+  else { el.value = ''; el.dataset.iso = ''; }
+  updateSteps();
+}
+function onFieldChange() { updateSteps(); }
+
+function updateSteps() {
+  const s1 = !!(document.getElementById('f-hatch').value && document.getElementById('f-vacc').value);
+  const s2 = !!(document.getElementById('f-vaccine').value.trim() && document.getElementById('f-flock').value);
+  document.getElementById('step1').className = 'step-dot ' + (s1 ? 'done' : 'active');
+  document.getElementById('step2').className = 'step-dot ' + (s2 ? 'done' : s1 ? 'active' : '');
+  document.getElementById('step3').className = 'step-dot ' + (s2 ? 'active' : '');
+  document.getElementById('line1').className = 'step-line ' + (s1 ? 'done' : '');
+  document.getElementById('line2').className = 'step-line ' + (s2 ? 'done' : '');
+}
+
+function toggleOrdered(v) {
+  orderedVal = v;
+  document.getElementById('tog-ord-y').className = 'toggle-btn' + (v==='ΝΑΙ' ? ' active' : '');
+  document.getElementById('tog-ord-n').className = 'toggle-btn' + (v==='' ? ' active' : '');
+}
+function toggleFridge(v) {
+  fridgeVal = v;
+  document.getElementById('tog-fri-y').className = 'toggle-btn' + (v==='ΝΑΙ' ? ' active' : '');
+  document.getElementById('tog-fri-n').className = 'toggle-btn' + (v==='' ? ' active' : '');
+}
+
+// ── ADD ───────────────────────────────────────────────────────────
+async function addEntry() {
+  const vaccine = document.getElementById('f-vaccine').value.trim();
+  const hatch   = document.getElementById('f-hatch').value;
+  const vacc    = document.getElementById('f-vacc').value;
+  const flock   = document.getElementById('f-flock').value;
+  if (!vaccine) { toast('Εισάγετε όνομα εμβολίου', true); return; }
+  if (!hatch)   { toast('Εισάγετε ημερομηνία εκκόλαψης', true); return; }
+  if (!vacc)    { toast('Εισάγετε ημερομηνία εμβολιασμού', true); return; }
+  if (!flock)   { toast('Επιλέξτε αναθρεπτική', true); return; }
+
+  const now = new Date().toISOString();
+  const row = {
+    emvolio: vaccine, hm_ekk: hatch||null, hm_emv: vacc||null,
+    hm_par: document.getElementById('f-deliv').value||null,
+    anath: flock, pelatis: document.getElementById('f-customer').value.trim()||null,
+    posotita: document.getElementById('f-qty').value.trim()||null,
+    sxolia: document.getElementById('f-notes').value.trim()||null,
+    promitheutis: document.getElementById('f-supplier').value.trim()||null,
+    paragelia: orderedVal||null,
+    hm_paragelia: document.getElementById('f-orderdate').dataset.iso||null,
+    psygeio: fridgeVal||null,
+    sxolia2: document.getElementById('f-notes2').value.trim()||null,
+    created_by: currentUser, created_at: now,
+    updated_by: currentUser, updated_at: now,
+  };
+
+  const btn = document.getElementById('btn-add');
+  btn.disabled = true; btn.textContent = 'Αποθήκευση…';
+  setSyncStatus('loading', 'Αποθήκευση…');
+  try {
+    const [inserted] = await sbInsert(row);
+    // log history
+    await sbHInsert({ row_id: inserted.id, action: 'created', user_name: currentUser, ts: now });
+    data.unshift({ ...inserted, _new: true });
+    resetForm(); render();
+    setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
+    toast('Η παραγγελία προστέθηκε!');
+  } catch (e) {
+    setSyncStatus('err', 'Σφάλμα');
+    toast('Σφάλμα: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '+ Προσθήκη στον Πίνακα';
+  }
+}
+
+function resetForm() {
+  ['f-hatch','f-vacc','f-deliv','f-vaccine','f-customer','f-qty','f-supplier','f-notes','f-notes2']
+    .forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+  document.getElementById('f-flock').value = '';
+  const od = document.getElementById('f-orderdate'); od.value=''; od.dataset.iso='';
+  toggleOrdered(''); toggleFridge(''); updateSteps();
+}
+
+// ── EDIT ──────────────────────────────────────────────────────────
+async function editEntry(id) {
+  editId = id;
+  const r = data.find(x => x.id === id); if (!r) return;
+  const set = (i,v) => { const e=document.getElementById(i); if(e) e.value=v||''; };
+  set('m-vaccine',r.emvolio); set('m-hatch',r.hm_ekk); set('m-vacc',r.hm_emv);
+  set('m-deliv',r.hm_par);   set('m-flock',r.anath);  set('m-customer',r.pelatis);
+  set('m-qty',r.posotita);   set('m-ordered',r.paragelia); set('m-fridge',r.psygeio);
+  set('m-supplier',r.promitheutis); set('m-notes',r.sxolia); set('m-notes2',r.sxolia2);
+  modalDateChange();
+  document.getElementById('modal-bg').style.display = 'flex';
+  loadHistory(id);
+}
+
+function modalDateChange() {
+  const vacc = document.getElementById('m-vacc').value;
+  const el = document.getElementById('m-orderdate');
+  if (vacc) { el.value = fmt(subDays(vacc,30)); el.dataset.iso = subDays(vacc,30); }
+  else { el.value=''; el.dataset.iso=''; }
+}
+
+async function loadHistory(rowId) {
+  const list = document.getElementById('history-list');
+  list.innerHTML = '<div style="color:var(--muted);font-size:11px">Φόρτωση…</div>';
+  try {
+    const hist = await sbHistory(rowId);
+    if (!hist || !hist.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:11px">Δεν υπάρχει ιστορικό.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    // show newest first
+    [...hist].reverse().forEach(h => {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.innerHTML =
+        `<div class="history-item-top">` +
+          `<span class="hi-user">${x(h.user_name)}</span>` +
+          `<span class="hi-action ${h.action==='created'?'created':'edited'}">${h.action==='created'?'Καταχώρηση':'Επεξεργασία'}</span>` +
+        `</div>` +
+        `<div class="hi-date">${fmtDt(h.ts)}</div>`;
+      list.appendChild(div);
+    });
+  } catch(e) {
+    list.innerHTML = `<div style="color:var(--muted);font-size:11px">Σφάλμα φόρτωσης ιστορικού.</div>`;
+  }
+}
+
+async function saveEdit() {
+  const g = id => document.getElementById(id).value;
+  const now = new Date().toISOString();
+  const row = {
+    emvolio: g('m-vaccine').trim(), hm_ekk: g('m-hatch')||null, hm_emv: g('m-vacc')||null,
+    hm_par: g('m-deliv')||null, anath: g('m-flock'),
+    pelatis: g('m-customer').trim()||null, posotita: g('m-qty').trim()||null,
+    paragelia: g('m-ordered')||null, psygeio: g('m-fridge')||null,
+    promitheutis: g('m-supplier').trim()||null,
+    sxolia: g('m-notes').trim()||null, sxolia2: g('m-notes2').trim()||null,
+    hm_paragelia: document.getElementById('m-orderdate').dataset.iso||null,
+    updated_by: currentUser, updated_at: now,
+  };
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = 'Αποθήκευση…';
+  setSyncStatus('loading', 'Αποθήκευση…');
+  try {
+    const [updated] = await sbUpdate(editId, row);
+    await sbHInsert({ row_id: editId, action: 'edited', user_name: currentUser, ts: now });
+    const idx = data.findIndex(x => x.id === editId);
+    if (idx >= 0) data[idx] = updated;
+    closeModal(); render();
+    setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
+    toast('Η εγγραφή ενημερώθηκε');
+  } catch (e) {
+    setSyncStatus('err', 'Σφάλμα');
+    toast('Σφάλμα: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Αποθήκευση';
+  }
+}
+
+function closeModal() { document.getElementById('modal-bg').style.display='none'; editId=null; }
+
+// ── DELETE ────────────────────────────────────────────────────────
+function promptDelete(id) {
+  deleteId = id;
+  const r = data.find(x => x.id === id);
+  document.getElementById('confirm-name').textContent = r ? r.emvolio : '';
+  document.getElementById('confirm-bg').style.display = 'flex';
+}
+
+async function confirmDelete() {
+  const btn = document.getElementById('btn-confirm-del');
+  btn.disabled=true; btn.textContent='Διαγραφή…';
+  setSyncStatus('loading','Διαγραφή…');
+  try {
+    await sbDelete(deleteId);
+    data = data.filter(x => x.id !== deleteId);
+    closeConfirm(); render();
+    setSyncStatus('ok','Διαγράφηκε ✓');
+    toast('Η εγγραφή διαγράφηκε');
+  } catch(e) {
+    setSyncStatus('err','Σφάλμα');
+    toast('Σφάλμα: ' + e.message, true);
+  } finally {
+    btn.disabled=false; btn.textContent='Διαγραφή';
+  }
+}
+function closeConfirm() { document.getElementById('confirm-bg').style.display='none'; deleteId=null; }
+
+// ── RENDER ────────────────────────────────────────────────────────
+function sortBy(col) { if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;} render(); }
+
+function getFiltered() {
+  const q  = (document.getElementById('search').value||'').toLowerCase();
+  const ff = document.getElementById('filt-flock').value;
+  const fo = document.getElementById('filt-ordered').value;
+  return data.filter(r => {
+    if (q && !Object.values(r).join(' ').toLowerCase().includes(q)) return false;
+    if (ff && r.anath !== ff) return false;
+    if (fo==='ΝΑΙ' && r.paragelia!=='ΝΑΙ') return false;
+    if (fo==='-'   && r.paragelia==='ΝΑΙ') return false;
+    return true;
+  });
+}
+
+function render() {
+  const SC = ['emvolio','anath','hm_ekk','hm_emv','hm_paragelia','hm_par','pelatis','posotita','paragelia','created_by'];
+  SC.forEach(c => { const e=document.getElementById('s-'+c); if(e) e.textContent=sortCol===c?(sortDir===1?'↑':'↓'):''; });
+
+  const rows = getFiltered().sort((a,b) => {
+    const av=(a[sortCol]||'').toString().toLowerCase();
+    const bv=(b[sortCol]||'').toString().toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+
+  document.getElementById('empty-state').style.display = rows.length ? 'none' : 'block';
+  const frag = document.createDocumentFragment();
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    if (r._new) { tr.classList.add('new-row'); delete r._new; }
+    const ord = r.paragelia==='ΝΑΙ', fri = r.psygeio==='ΝΑΙ';
+    const notes = [r.sxolia,r.sxolia2].filter(Boolean).join(' · ')||'—';
+
+    // meta cell: created vs updated
+    let metaHtml = '';
+    if (r.created_by) {
+      metaHtml = `<div class="meta-info">` +
+        `<span class="meta-user">${x(r.created_by)}</span>` +
+        `<span class="meta-date">${fmtDt(r.created_at)}</span>` +
+        (r.updated_by && r.updated_at !== r.created_at
+          ? `<span class="meta-edited">✎ ${x(r.updated_by)}</span>`
+          : '') +
+      `</div>`;
+    } else {
+      metaHtml = '<span style="color:var(--dim)">—</span>';
+    }
+
+    tr.innerHTML =
+      `<td>${fmt(r.hm_ekk)}</td>`+
+      `<td>${fmt(r.hm_emv)}</td>`+
+      `<td style="color:${r.hm_paragelia?'var(--amber)':'var(--dim)'}">${fmt(r.hm_paragelia)||'—'}</td>`+
+      `<td class="vacc" title="${x(r.emvolio)}">${x(r.emvolio)}</td>`+
+      `<td><span class="badge b-flock">${x(r.anath||'—')}</span></td>`+
+      `<td>${x(r.posotita||'—')}</td>`+
+      `<td style="color:var(--muted)">${x(r.pelatis||'—')}</td>`+
+      `<td style="color:var(--muted);font-size:11px" title="${x(r.sxolia||'')}">${x(r.sxolia||'—')}</td>`+
+      `<td><span class="badge ${ord?'b-yes':'b-pending'}">${ord?'ΝΑΙ':'—'}</span></td>`+
+      `<td>${fmt(r.hm_par)||'—'}</td>`+
+      `<td style="color:var(--muted);font-size:11px">${x(r.promitheutis||'—')}</td>`+
+      `<td><span class="badge ${fri?'b-yes':'b-no'}">${fri?'ΝΑΙ':'—'}</span></td>`+
+      `<td style="color:var(--muted);font-size:11px" title="${x(r.sxolia2||'')}">${x(r.sxolia2||'—')}</td>`+
+      `<td class="meta-cell">${metaHtml}</td>`+
+      `<td><div class="row-actions">`+
+        `<button class="row-btn" onclick="editEntry(${r.id})">Επεξ.</button>`+
+        `<button class="row-btn del" onclick="promptDelete(${r.id})">Διαγρ.</button>`+
+      `</div></td>`;
+    frag.appendChild(tr);
+  });
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML='';
+  tbody.appendChild(frag);
+
+  const total=data.length, confirmed=data.filter(r=>r.paragelia==='ΝΑΙ').length;
+  document.getElementById('stat-total').textContent   = total;
+  document.getElementById('stat-ordered').textContent = confirmed;
+  document.getElementById('stat-pending').textContent = total-confirmed;
+}
+
+function x(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── ZOOM ──────────────────────────────────────────────────────────
+function setZoom(v) {
+  v = parseFloat(v);
+  document.documentElement.style.setProperty('--zoom', v);
+  document.getElementById('zoom-label').textContent = Math.round(v*100)+'%';
+  const s = document.getElementById('tbl-scaler');
+  s.style.width  = (100/v)+'%';
+  s.style.height = (100/v)+'%';
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────
+function exportCSV() {
+  const H = ['emvolio','hm_ekk','hm_emv','hm_par','anath','pelatis','posotita','sxolia','promitheutis','paragelia','hm_paragelia','psygeio','sxolia2','created_by','created_at','updated_by','updated_at'];
+  const L = ['ΕΜΒΟΛΙΑ','ΗΜ.ΕΚΚ','ΗΜ.ΕΜΒ','ΗΜ.ΠΑΡ','ΑΝΑΘ.','ΠΕΛΑΤΗΣ','ΠΟΣΟΤΗΤΑ','ΣΧΟΛΙΑ','ΠΡΟΜΗΘΕΥΤΗΣ','ΠΑΡΑΓΓΕΛΙΑ','ΗΜ.ΠΑΡΑΓΓ.','ΨΥΓΕΙΟ','ΣΧΟΛΙΑ2','ΔΗΜΙΟΥΡΓΗΘΗΚΕ_ΑΠΟ','ΔΗΜΙΟΥΡΓΗΘΗΚΕ','ΕΠΕΞΕΡΓΑΣΤΗΚΕ_ΑΠΟ','ΕΠΕΞΕΡΓΑΣΤΗΚΕ'];
+  const rows = getFiltered().map(r => H.map(h => '"'+(r[h]||'').toString().replace(/"/g,'""')+'"').join(','));
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([L.join(','),...rows].join('\n'));
+  a.download = 'emvolia_export.csv'; a.click();
+  toast('CSV εξαχθέν');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────
+let tt;
+function toast(msg, err=false) {
+  const e = document.getElementById('toast');
+  e.textContent=msg; e.className='toast show'+(err?' err':'');
+  clearTimeout(tt); tt=setTimeout(()=>{e.className='toast';},3000);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+toggleOrdered(''); toggleFridge('');
+// restore session name if exists
+const savedName = sessionStorage.getItem('emvolia_user');
+if (savedName) {
+  currentUser = savedName;
+  document.getElementById('user-chip-name').textContent = savedName;
+  document.getElementById('gate-bg').style.display = 'none';
+  loadData();
+} else {
+  setTimeout(() => document.getElementById('gate-name').focus(), 100);
+}
+</script>
+</body>
+</html>
