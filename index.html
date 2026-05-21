@@ -505,7 +505,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     <div class="sec-label">Βήμα 1 — Ημερομηνίες & Αναθρεπτήριο</div>
     <div class="fgroup">
       <label>Ημ. Εκκόλαψης</label>
-      <input type="date" id="f-hatch" onchange="onDateChange()">
+      <input type="text" id="f-hatch" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">
     </div>
     <div class="fgroup">
       <label>Αναθρεπτήριο</label>
@@ -516,7 +516,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     </div>
     <div class="fgroup">
       <label>Ημ. Εμβολιασμού</label>
-      <input type="date" id="f-vacc" onchange="onDateChange()">
+      <input type="text" id="f-vacc" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">
     </div>
     <div class="fgroup">
       <label>Ημ. Παραγγελίας <span class="calc-badge">ΑΥΤΟ −30 ημ.</span></label>
@@ -625,10 +625,10 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     <h3>Επεξεργασία Παραγγελίας</h3>
     <div class="mgrid">
       <div class="fgroup full"><label>Εμβόλιο</label><input type="text" id="m-vaccine" list="vaccine-list"></div>
-      <div class="fgroup"><label>Ημ. Εκκόλαψης</label><input type="date" id="m-hatch"></div>
-      <div class="fgroup"><label>Ημ. Εμβολιασμού</label><input type="date" id="m-vacc" onchange="modalDateChange()"></div>
+      <div class="fgroup"><label>Ημ. Εκκόλαψης</label><input type="text" id="m-hatch" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
+      <div class="fgroup"><label>Ημ. Εμβολιασμού</label><input type="text" id="m-vacc" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
       <div class="fgroup"><label>Ημ. Παραγγελίας <span class="calc-badge">ΑΥΤΟ</span></label><input type="text" id="m-orderdate" class="calc-field" readonly></div>
-      <div class="fgroup"><label>Ημ. Παράδοσης</label><input type="date" id="m-deliv"></div>
+      <div class="fgroup"><label>Ημ. Παράδοσης</label><input type="text" id="m-deliv" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
       <div class="fgroup"><label>Αναθρεπτήριο</label>
         <select id="m-flock"><option value="">—</option><option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option></select></div>
       <div class="fgroup"><label>Πελάτης</label><input type="text" id="m-customer"></div>
@@ -801,18 +801,60 @@ function fmtDt(iso) {
          d.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
 }
 
+// ── SMART DATE PARSING ────────────────────────────────────────────
+// Accepts: dd/mm, dd/mm/yy, dd/mm/yyyy, dd-mm, dd-mm-yy, dd-mm-yyyy
+// Missing year → current year. 2-digit year → 20xx.
+function parseSmartDate(raw) {
+  if (!raw || !raw.trim()) return '';
+  const s = raw.trim().replace(/[-\.]/g, '/');
+  const parts = s.split('/').map(p => p.trim());
+  if (parts.length < 2) return '';
+  const d = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  let y;
+  if (parts.length >= 3 && parts[2]) {
+    y = parseInt(parts[2], 10);
+    if (y < 100) y += 2000; // 26 → 2026
+  } else {
+    y = new Date().getFullYear(); // auto current year
+  }
+  if (isNaN(d) || isNaN(m) || isNaN(y)) return '';
+  if (m < 1 || m > 12 || d < 1 || d > 31) return '';
+  // pad and return ISO
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+// Called on blur of any smart date text input — parses and normalises display
+function onSmartDateBlur(el) {
+  const iso = parseSmartDate(el.value);
+  if (iso) {
+    el.value = fmt(iso);       // show as dd/mm/yyyy
+    el.dataset.iso = iso;      // store ISO for DB writes
+  } else if (el.value.trim()) {
+    el.style.borderColor = 'var(--gh-danger-fg)'; // invalid — highlight red
+    el.dataset.iso = '';
+    return;
+  } else {
+    el.dataset.iso = '';
+  }
+  el.style.borderColor = ''; // clear any error state
+  // trigger downstream logic (order date calc, steps)
+  if (el.id === 'f-vacc' || el.id === 'f-hatch') onDateChange();
+  if (el.id === 'm-vacc') modalDateChange();
+}
+
 function onDateChange() {
-  const vacc = document.getElementById('f-vacc').value;
+  const vaccIso = document.getElementById('f-vacc').dataset.iso || '';
   const el = document.getElementById('f-orderdate');
-  if (vacc) { const od = subDays(vacc,30); el.value = fmt(od); el.dataset.iso = od; }
+  if (vaccIso) { const od = subDays(vaccIso, 30); el.value = fmt(od); el.dataset.iso = od; }
   else { el.value = ''; el.dataset.iso = ''; }
   updateSteps();
 }
 function onFieldChange() { updateSteps(); }
 
 function updateSteps() {
-  const s1 = !!(document.getElementById('f-hatch').value && document.getElementById('f-flock').value);
-  const s2 = !!(document.getElementById('f-vaccine').value.trim() && document.getElementById('f-vacc').value);
+  const s1 = !!(document.getElementById('f-hatch').dataset.iso && document.getElementById('f-flock').value);
+  const s2 = !!(document.getElementById('f-vaccine').value.trim() && document.getElementById('f-vacc').dataset.iso);
   document.getElementById('step1').className = 'step-dot ' + (s1 ? 'done' : 'active');
   document.getElementById('step2').className = 'step-dot ' + (s2 ? 'done' : s1 ? 'active' : '');
   document.getElementById('step3').className = 'step-dot ' + (s2 ? 'active' : '');
@@ -847,8 +889,8 @@ function guardConnected() {
 async function addEntry() {
   if (!guardConnected()) return;
   const vaccine = document.getElementById('f-vaccine').value.trim();
-  const hatch   = document.getElementById('f-hatch').value;
-  const vacc    = document.getElementById('f-vacc').value;
+  const hatch   = document.getElementById('f-hatch').dataset.iso  || '';
+  const vacc    = document.getElementById('f-vacc').dataset.iso   || '';
   const flock   = document.getElementById('f-flock').value;
   if (!vaccine) { toast('Εισάγετε όνομα εμβολίου', true); return; }
   if (!hatch)   { toast('Εισάγετε ημερομηνία εκκόλαψης', true); return; }
@@ -893,7 +935,11 @@ async function addEntry() {
 
 function resetForm() {
   ['f-hatch','f-vacc','f-vaccine','f-customer','f-qty','f-supplier','f-notes']
-    .forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+    .forEach(id => {
+      const e = document.getElementById(id); if(!e) return;
+      e.value = ''; e.style.borderColor = '';
+      if (e.dataset) e.dataset.iso = '';
+    });
   document.getElementById('f-flock').value = '';
   const od = document.getElementById('f-orderdate'); od.value=''; od.dataset.iso='';
   toggleOrdered(''); toggleFridge(''); updateSteps();
@@ -905,9 +951,14 @@ async function editEntry(id) {
   editId = id;
   const r = data.find(x => x.id === id); if (!r) return;
   const set = (i,v) => { const e=document.getElementById(i); if(e) e.value=v||''; };
-  set('m-vaccine',r.emvolio); set('m-hatch',r.hm_ekk); set('m-vacc',r.hm_emv);
-  set('m-deliv',r.hm_par);   set('m-flock',r.anath);  set('m-customer',r.pelatis);
-  set('m-qty',r.posotita);   set('m-ordered',r.paragelia); set('m-fridge',r.psygeio);
+  const setDate = (i,iso) => {
+    const e = document.getElementById(i); if(!e) return;
+    e.value = fmt(iso)||''; e.dataset.iso = iso||''; e.style.borderColor='';
+  };
+  set('m-vaccine',r.emvolio);
+  setDate('m-hatch', r.hm_ekk); setDate('m-vacc', r.hm_emv); setDate('m-deliv', r.hm_par);
+  set('m-flock',r.anath);  set('m-customer',r.pelatis);
+  set('m-qty',r.posotita); set('m-ordered',r.paragelia); set('m-fridge',r.psygeio);
   set('m-supplier',r.promitheutis); set('m-notes',r.sxolia_panos); set('m-notes2',r.sxolia_eleni);
   modalDateChange();
   document.getElementById('modal-bg').style.display = 'flex';
@@ -915,9 +966,9 @@ async function editEntry(id) {
 }
 
 function modalDateChange() {
-  const vacc = document.getElementById('m-vacc').value;
+  const vaccIso = document.getElementById('m-vacc').dataset.iso || '';
   const el = document.getElementById('m-orderdate');
-  if (vacc) { el.value = fmt(subDays(vacc,30)); el.dataset.iso = subDays(vacc,30); }
+  if (vaccIso) { el.value = fmt(subDays(vaccIso,30)); el.dataset.iso = subDays(vaccIso,30); }
   else { el.value=''; el.dataset.iso=''; }
 }
 
@@ -950,11 +1001,12 @@ async function loadHistory(rowId) {
 
 async function saveEdit() {
   if (!guardConnected()) return;
-  const g = id => document.getElementById(id).value;
+  const g  = id => document.getElementById(id).value;
+  const gd = id => document.getElementById(id).dataset.iso || null; // smart date
   const now = new Date().toISOString();
   const row = {
-    emvolio: g('m-vaccine').trim(), hm_ekk: g('m-hatch')||null, hm_emv: g('m-vacc')||null,
-    hm_par: g('m-deliv')||null, anath: g('m-flock'),
+    emvolio: g('m-vaccine').trim(), hm_ekk: gd('m-hatch'), hm_emv: gd('m-vacc'),
+    hm_par: gd('m-deliv'), anath: g('m-flock'),
     pelatis: g('m-customer').trim()||null, posotita: g('m-qty').trim()||null,
     paragelia: g('m-ordered')||null, psygeio: g('m-fridge')||null,
     promitheutis: g('m-supplier').trim()||null,
@@ -1399,7 +1451,7 @@ function batchEdit() {
     if (f.type === 'select') {
       inputHtml = `<select class="field-input" id="bf-${f.key}">${f.options.map(o=>`<option value="${o}">${o||'—'}</option>`).join('')}</select>`;
     } else if (f.type === 'date') {
-      inputHtml = `<input type="date" class="field-input" id="bf-${f.key}">`;
+      inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">`;
     } else {
       inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="Νέα τιμή…">`;
     }
@@ -1430,8 +1482,10 @@ async function saveBatchEdit() {
   BATCH_FIELDS.forEach(f => {
     const cb = document.getElementById('bfc-' + f.key);
     if (cb && cb.checked) {
-      const val = document.getElementById('bf-' + f.key).value;
-      updates[f.key] = val || null;
+      const el = document.getElementById('bf-' + f.key);
+      // for date fields, use dataset.iso (set by onSmartDateBlur); for others use .value
+      const val = (f.type === 'date') ? (el.dataset.iso || null) : (el.value || null);
+      updates[f.key] = val;
     }
   });
 
