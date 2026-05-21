@@ -376,7 +376,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 /* History */
 .history-section{margin-top:18px;padding-top:16px;border-top:1px solid var(--gh-border-muted)}
 .history-title{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;color:var(--gh-fg-muted);margin-bottom:10px}
-.history-list{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
+.history-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
 .history-item{background:var(--gh-canvas-default);border:1px solid var(--gh-border-muted);border-radius:var(--rs);padding:10px 12px}
 .history-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .hi-user{font-size:13px;font-weight:600;color:var(--gh-fg-default)}
@@ -384,6 +384,12 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 .hi-action.created{color:var(--gh-success-fg);border-color:rgba(63,185,80,0.4);background:var(--gh-success-subtle)}
 .hi-action.edited{color:var(--gh-attention-fg);border-color:rgba(210,153,34,0.4);background:var(--gh-attention-subtle)}
 .hi-date{font-size:12px;color:var(--gh-fg-muted)}
+.hi-changes{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.hi-change{font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:baseline}
+.hi-field{color:var(--gh-fg-muted);font-weight:500;white-space:nowrap}
+.hi-from{color:var(--gh-danger-fg);text-decoration:line-through;word-break:break-word}
+.hi-arrow{color:var(--gh-fg-subtle);margin:0 3px}
+.hi-to{color:var(--gh-success-fg);font-weight:500;word-break:break-word}
 
 /* ── NAME / PASSWORD GATE ── */
 .name-gate{
@@ -1042,16 +1048,36 @@ async function loadHistory(rowId) {
       return;
     }
     list.innerHTML = '';
-    // show newest first
     [...hist].reverse().forEach(h => {
       const div = document.createElement('div');
       div.className = 'history-item';
+
+      // parse changes_json if present
+      let changesHtml = '';
+      if (h.changes_json) {
+        try {
+          const changes = JSON.parse(h.changes_json);
+          const lines = Object.values(changes).map(c => {
+            const from = c.from !== null && c.from !== undefined ? x(String(c.from)) : '<em style="color:var(--gh-fg-subtle)">κενό</em>';
+            const to   = c.to   !== null && c.to   !== undefined ? x(String(c.to))   : '<em style="color:var(--gh-fg-subtle)">κενό</em>';
+            return `<div class="hi-change">` +
+              `<span class="hi-field">${x(c.label)}:</span>` +
+              `<span><span class="hi-from">${from}</span>` +
+              `<span class="hi-arrow">→</span>` +
+              `<span class="hi-to">${to}</span></span>` +
+              `</div>`;
+          });
+          if (lines.length) changesHtml = `<div class="hi-changes">${lines.join('')}</div>`;
+        } catch(e) {}
+      }
+
       div.innerHTML =
         `<div class="history-item-top">` +
           `<span class="hi-user">${x(h.user_name)}</span>` +
           `<span class="hi-action ${h.action==='created'?'created':'edited'}">${h.action==='created'?'Καταχώρηση':'Επεξεργασία'}</span>` +
         `</div>` +
-        `<div class="hi-date">${fmtDt(h.ts)}</div>`;
+        `<div class="hi-date">${fmtDt(h.ts)}</div>` +
+        changesHtml;
       list.appendChild(div);
     });
   } catch(e) {
@@ -1062,8 +1088,13 @@ async function loadHistory(rowId) {
 async function saveEdit() {
   if (!guardConnected()) return;
   const g  = id => document.getElementById(id).value;
-  const gd = id => document.getElementById(id).dataset.iso || null; // smart date
+  const gd = id => document.getElementById(id).dataset.iso || null;
   const now = new Date().toISOString();
+
+  // snapshot before state for diff
+  const idx = data.findIndex(x => x.id === editId);
+  const before = idx >= 0 ? { ...data[idx] } : {};
+
   const row = {
     emvolio: g('m-vaccine').trim(), hm_ekk: gd('m-hatch'), hm_emv: gd('m-vacc'),
     hm_par: gd('m-deliv'), anath: g('m-flock'),
@@ -1074,14 +1105,33 @@ async function saveEdit() {
     hm_paragelia: document.getElementById('m-orderdate').dataset.iso||null,
     updated_by: currentUser, updated_at: now,
   };
+
+  // build diff: only fields that actually changed
+  const FIELD_LABELS = {
+    emvolio:'Εμβόλιο', hm_ekk:'Ημ. Εκκόλαψης', hm_emv:'Ημ. Εμβολιασμού',
+    hm_par:'Ημ. Καταχώρησης', anath:'Αναθρεπτήριο', pelatis:'Πελάτης',
+    posotita:'Ποσότητα', paragelia:'Παραγγελία', psygeio:'Ψυγείο',
+    promitheutis:'Προμηθευτής', sxolia_panos:'Σχόλια Πάνος',
+    sxolia_eleni:'Σχόλια Ελένη', hm_paragelia:'Ημ. Παραγγελίας',
+  };
+  const changes = {};
+  Object.keys(FIELD_LABELS).forEach(k => {
+    const oldVal = before[k] ?? null;
+    const newVal = row[k] ?? null;
+    if (String(oldVal ?? '') !== String(newVal ?? '')) {
+      changes[k] = { label: FIELD_LABELS[k], from: oldVal, to: newVal };
+    }
+  });
+
   const btn = document.getElementById('btn-save');
   btn.disabled = true; btn.textContent = 'Αποθήκευση…';
   setSyncStatus('loading', 'Αποθήκευση…');
   try {
     const [updated] = await sbUpdate(editId, row);
-    await sbHInsert({ row_id: editId, action: 'edited', user_name: currentUser, ts: now });
-    const idx = data.findIndex(x => x.id === editId);
-    const before = idx >= 0 ? { ...data[idx] } : null;
+    await sbHInsert({
+      row_id: editId, action: 'edited', user_name: currentUser, ts: now,
+      changes_json: Object.keys(changes).length ? JSON.stringify(changes) : null,
+    });
     if (idx >= 0) data[idx] = updated;
     if (before) pushUndo({ type: 'edit', before, after: updated });
     closeModal(); render();
@@ -1250,6 +1300,14 @@ function render() {
       metaHtml = '<span style="color:var(--gh-fg-subtle)">—</span>';
     }
 
+    tr.setAttribute('data-id', r.id);
+    tr.setAttribute('title', 'Διπλό κλικ για επεξεργασία');
+    tr.style.cursor = 'default';
+    tr.addEventListener('dblclick', e => {
+      // don't open edit if they double-clicked a button or checkbox
+      if (e.target.closest('button, input[type=checkbox]')) return;
+      editEntry(r.id);
+    });
     tr.innerHTML =
       `<td class="cb-cell"><input type="checkbox" class="row-cb" data-id="${r.id}" onchange="onRowCheck(${r.id},this.checked)"></td>`+
       `<td><span class="badge b-flock" title="${x(fl)}">${x(fl)}</span></td>`+
