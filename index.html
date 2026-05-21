@@ -505,7 +505,8 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     <div class="sec-label">Βήμα 1 — Ημερομηνίες & Αναθρεπτήριο</div>
     <div class="fgroup">
       <label>Ημ. Εκκόλαψης</label>
-      <input type="text" id="f-hatch" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">
+      <input type="text" id="f-hatch" list="hatch-list" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">
+      <datalist id="hatch-list"></datalist>
     </div>
     <div class="fgroup">
       <label>Αναθρεπτήριο</label>
@@ -545,7 +546,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     <div class="sec-label">Βήμα 3 — Λεπτομέρειες</div>
     <div class="row2">
       <div class="fgroup"><label>Πελάτης</label><input type="text" id="f-customer" placeholder="Προαιρετικό…"></div>
-      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="f-qty" placeholder="π.χ. 75000"></div>
+      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="f-qty" placeholder="π.χ. 75000" onblur="fmtQty(this)" onfocus="stripQty(this)"></div>
     </div>
     <div class="fgroup">
       <label>Προμηθευτής</label>
@@ -632,7 +633,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
       <div class="fgroup"><label>Αναθρεπτήριο</label>
         <select id="m-flock"><option value="">—</option><option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option></select></div>
       <div class="fgroup"><label>Πελάτης</label><input type="text" id="m-customer"></div>
-      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="m-qty"></div>
+      <div class="fgroup"><label>Ποσότητα</label><input type="text" id="m-qty" onblur="fmtQty(this)" onfocus="stripQty(this)"></div>
       <div class="fgroup"><label>Παραγγελία</label>
         <select id="m-ordered"><option value="">—</option><option value="ΝΑΙ">ΝΑΙ</option></select></div>
       <div class="fgroup"><label>Ψυγείο</label>
@@ -876,7 +877,39 @@ function toggleFridge(v) {
   if (n) n.className = 'toggle-btn' + (v==='' ? ' active' : '');
 }
 
-// ── CONNECTION GUARD ──────────────────────────────────────────────
+// ── QUANTITY FORMATTING ───────────────────────────────────────────
+function fmtQty(el) {
+  const raw = el.value.replace(/\./g, '').trim();
+  const n = parseInt(raw, 10);
+  if (!isNaN(n) && String(n) === raw) {
+    el.value = n.toLocaleString('el-GR'); // Greek locale uses . as thousands separator
+  }
+  // non-numeric values like "7 ΚΙΛΑ" are left untouched
+}
+
+function stripQty(el) {
+  // on focus, remove dots so the user can edit the raw number
+  el.value = el.value.replace(/\./g, '');
+}
+
+// strip formatting before sending to DB
+function rawQty(val) {
+  if (!val) return null;
+  const stripped = val.replace(/\./g, '').trim();
+  return stripped || null;
+}
+
+// format a raw quantity value for display in the table
+function fmtPosotita(val) {
+  if (!val) return '—';
+  const n = parseInt(String(val).replace(/\./g,''), 10);
+  if (!isNaN(n) && String(n) === String(val).replace(/\./g,'').trim()) {
+    return n.toLocaleString('el-GR');
+  }
+  return x(val); // non-numeric like "7 ΚΙΛΑ" — show as-is
+}
+
+
 function guardConnected() {
   if (!isConnected) {
     toast('⚠ Χωρίς σύνδεση — αδύνατη η αποθήκευση. Ανανεώστε πρώτα.', true);
@@ -902,7 +935,7 @@ async function addEntry() {
     emvolio: vaccine, hm_ekk: hatch||null, hm_emv: vacc||null,
     hm_par: null,
     anath: flock, pelatis: document.getElementById('f-customer').value.trim()||null,
-    posotita: document.getElementById('f-qty').value.trim()||null,
+    posotita: rawQty(document.getElementById('f-qty').value),
     sxolia_panos: document.getElementById('f-notes').value.trim()||null,
     promitheutis: document.getElementById('f-supplier').value.trim()||null,
     paragelia: orderedVal||null,
@@ -959,6 +992,7 @@ async function editEntry(id) {
   setDate('m-hatch', r.hm_ekk); setDate('m-vacc', r.hm_emv); setDate('m-deliv', r.hm_par);
   set('m-flock',r.anath);  set('m-customer',r.pelatis);
   set('m-qty',r.posotita); set('m-ordered',r.paragelia); set('m-fridge',r.psygeio);
+  const mqty = document.getElementById('m-qty'); if (mqty) fmtQty(mqty);
   set('m-supplier',r.promitheutis); set('m-notes',r.sxolia_panos); set('m-notes2',r.sxolia_eleni);
   modalDateChange();
   document.getElementById('modal-bg').style.display = 'flex';
@@ -1007,7 +1041,7 @@ async function saveEdit() {
   const row = {
     emvolio: g('m-vaccine').trim(), hm_ekk: gd('m-hatch'), hm_emv: gd('m-vacc'),
     hm_par: gd('m-deliv'), anath: g('m-flock'),
-    pelatis: g('m-customer').trim()||null, posotita: g('m-qty').trim()||null,
+    pelatis: g('m-customer').trim()||null, posotita: rawQty(g('m-qty')),
     paragelia: g('m-ordered')||null, psygeio: g('m-fridge')||null,
     promitheutis: g('m-supplier').trim()||null,
     sxolia_panos: g('m-notes').trim()||null, sxolia_eleni: g('m-notes2').trim()||null,
@@ -1117,8 +1151,27 @@ function getFiltered() {
   });
 }
 
+// rebuild hatch date datalist from existing data (sorted, unique, displayed as dd/mm/yyyy)
+function populateHatchList() {
+  const dl = document.getElementById('hatch-list');
+  if (!dl) return;
+  const seen = new Set();
+  const sorted = [...data]
+    .map(r => r.hm_ekk).filter(Boolean)
+    .sort();
+  dl.innerHTML = '';
+  sorted.forEach(iso => {
+    if (seen.has(iso)) return;
+    seen.add(iso);
+    const opt = document.createElement('option');
+    opt.value = fmt(iso); // show as dd/mm/yyyy so it matches what user types
+    dl.appendChild(opt);
+  });
+}
+
 function render() {
   populateFlockFilter();
+  populateHatchList();
   const SC = ['emvolio','hm_ekk','hm_emv','hm_paragelia','hm_par','pelatis','posotita','paragelia','created_by'];
   SC.forEach(c => { const e=document.getElementById('s-'+c); if(e) e.textContent=sortCol===c?(sortDir===1?'↑':'↓'):''; });
 
@@ -1157,7 +1210,7 @@ function render() {
       `<td>${fmt(r.hm_emv)}</td>`+
       `<td style="color:${r.hm_paragelia?'var(--gh-attention-fg)':'var(--gh-fg-subtle)'}">${fmt(r.hm_paragelia)||'—'}</td>`+
       `<td class="vacc" title="${x(r.emvolio)}">${x(r.emvolio)}</td>`+
-      `<td>${x(r.posotita||'—')}</td>`+
+      `<td>${fmtPosotita(r.posotita)}</td>`+
       `<td style="color:var(--gh-fg-muted)">${x(r.pelatis||'—')}</td>`+
       `<td style="color:var(--gh-fg-muted);font-size:11px" title="${x(r.sxolia_panos||'')}">${x(r.sxolia_panos||'—')}</td>`+
       `<td><span class="badge ${ord?'b-yes':'b-pending'}">${ord?'ΝΑΙ':'—'}</span></td>`+
@@ -1425,7 +1478,7 @@ const BATCH_FIELDS = [
   { key:'hm_paragelia', label:'Ημ. Παραγγελίας',  type:'date'   },
   { key:'hm_par',       label:'Ημ. Παράδοσης',    type:'date'   },
   { key:'anath',        label:'Αναθρεπτήριο',      type:'select', options:['','Θ1','Θ2','Θ3','Θ4','Α1'] },
-  { key:'posotita',     label:'Ποσότητα',          type:'text'   },
+  { key:'posotita',     label:'Ποσότητα',          type:'qty'    },
   { key:'pelatis',      label:'Πελάτης',           type:'text'   },
   { key:'paragelia',    label:'Παραγγελία',        type:'select', options:['','ΝΑΙ'] },
   { key:'psygeio',      label:'Ψυγείο',            type:'select', options:['','ΝΑΙ'] },
@@ -1452,6 +1505,8 @@ function batchEdit() {
       inputHtml = `<select class="field-input" id="bf-${f.key}">${f.options.map(o=>`<option value="${o}">${o||'—'}</option>`).join('')}</select>`;
     } else if (f.type === 'date') {
       inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off">`;
+    } else if (f.type === 'qty') {
+      inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="π.χ. 60000" onblur="fmtQty(this)" onfocus="stripQty(this)">`;
     } else {
       inputHtml = `<input type="text" class="field-input" id="bf-${f.key}" placeholder="Νέα τιμή…">`;
     }
@@ -1483,8 +1538,11 @@ async function saveBatchEdit() {
     const cb = document.getElementById('bfc-' + f.key);
     if (cb && cb.checked) {
       const el = document.getElementById('bf-' + f.key);
-      // for date fields, use dataset.iso (set by onSmartDateBlur); for others use .value
-      const val = (f.type === 'date') ? (el.dataset.iso || null) : (el.value || null);
+      // for date fields use dataset.iso; for qty strip dots; for others use .value
+      let val;
+      if (f.type === 'date')      val = el.dataset.iso || null;
+      else if (f.type === 'qty')  val = rawQty(el.value);
+      else                        val = el.value || null;
       updates[f.key] = val;
     }
   });
