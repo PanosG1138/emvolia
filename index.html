@@ -1020,14 +1020,12 @@ async function confirmPassword() {
 
 // ── NAME GATE ─────────────────────────────────────────────────────
 function showNameGateOrProceed() {
-  const savedName = sessionStorage.getItem('emvolia_user');
-  if (savedName) {
-    currentUser = savedName;
-    document.getElementById('user-chip-name').textContent = savedName;
-    document.getElementById('gate-bg').style.display = 'none';
-    loadData();
-  }
-  // else: name gate already visible, wait for user
+  // Always show name gate after password — user must pick a name every session
+  document.getElementById('gate-bg').style.display = 'flex';
+  setTimeout(() => {
+    const first = document.querySelector('.name-opt-btn');
+    if (first) first.focus();
+  }, 100);
 }
 
 function selectPresetName(name) {
@@ -1240,16 +1238,20 @@ async function confirmBatchDelete() {
 
 
 // ── INIT ──────────────────────────────────────────────────────────
-orderedVal = ''; fridgeVal = ''; // sidebar toggles removed; defaults stay empty
+orderedVal = ''; fridgeVal = '';
 updateUndoRedoBtns();
 
-// Always check password on every page load — never skip it
-// sessionStorage is tab-scoped so new tabs always ask again
+// Always require password + name on every fresh page load
+// Clear any saved name so the name gate always shows after password
+sessionStorage.removeItem('emvolia_user');
+
 if (sessionStorage.getItem('emvolia_pw') === '1') {
+  // Password already verified this session (e.g. same tab reload) — skip to name gate
   document.getElementById('pw-gate-bg').style.display = 'none';
-  showNameGateOrProceed();
+  document.getElementById('gate-bg').style.display = 'flex';
+  setTimeout(() => { const f = document.querySelector('.name-opt-btn'); if(f) f.focus(); }, 100);
 } else {
-  // show password gate, hide name gate until after password
+  // Fresh visit — show password gate, keep name gate hidden
   document.getElementById('gate-bg').style.display = 'none';
   setTimeout(() => document.getElementById('pw-input').focus(), 100);
 }
