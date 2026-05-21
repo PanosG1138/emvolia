@@ -273,7 +273,7 @@ tfoot td{padding:7px 12px;font-size:13px;font-weight:600;color:var(--gh-fg-defau
 .tbl-scaler{transform-origin:top left;transform:scale(var(--zoom));width:calc(100% / var(--zoom))}
 table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
 thead tr{background:var(--gh-canvas-subtle);border-bottom:1px solid var(--gh-border-default)}
-th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--gh-fg-default);cursor:pointer;user-select:none;letter-spacing:0}
+th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--gh-fg-default);cursor:pointer;user-select:none;letter-spacing:0;white-space:normal;min-width:80px;vertical-align:bottom;line-height:1.3}
 th:hover{color:var(--gh-accent-fg)}
 th .arr{font-size:10px;margin-left:3px;color:var(--gh-fg-muted)}
 tbody tr{border-bottom:1px solid var(--gh-border-muted);transition:background 0.1s}
@@ -290,7 +290,7 @@ td.meta-cell{max-width:130px}
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;line-height:18px}
 .b-yes{background:var(--gh-success-subtle);color:var(--gh-success-fg);border:1px solid rgba(63,185,80,0.3)}
 .b-no{background:var(--gh-canvas-subtle);color:var(--gh-fg-subtle);border:1px solid var(--gh-border-muted)}
-.b-flock{background:var(--gh-accent-subtle);color:var(--gh-accent-fg);border:1px solid rgba(56,139,253,0.3)}
+.b-flock{background:var(--gh-accent-subtle);color:var(--gh-accent-fg);border:1px solid rgba(56,139,253,0.45);font-weight:700;font-size:12px;letter-spacing:0.01em}
 .b-pending{background:var(--gh-attention-subtle);color:var(--gh-attention-fg);border:1px solid rgba(210,153,34,0.3)}
 
 /* Row action buttons */
@@ -609,7 +609,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
           <th onclick="sortBy('pelatis')">Πελάτης<span class="arr" id="s-pelatis"></span></th>
           <th>Σχόλια Πάνος</th>
           <th onclick="sortBy('paragelia')">Παραγγελία<span class="arr" id="s-paragelia"></span></th>
-          <th onclick="sortBy('hm_par')">Ημ. Παράδοσης<span class="arr" id="s-hm_par"></span></th>
+          <th onclick="sortBy('hm_par')">Ημ. Καταχώρησης Παραγγελίας<span class="arr" id="s-hm_par"></span></th>
           <th>Προμηθευτής</th>
           <th>Ψυγείο</th>
           <th>Σχόλια Ελένη</th>
@@ -638,7 +638,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
       <div class="fgroup"><label>Ημ. Εκκόλαψης</label><input type="text" id="m-hatch" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
       <div class="fgroup"><label>Ημ. Εμβολιασμού</label><input type="text" id="m-vacc" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
       <div class="fgroup"><label>Ημ. Παραγγελίας <span class="calc-badge">ΑΥΤΟ</span></label><input type="text" id="m-orderdate" class="calc-field" readonly></div>
-      <div class="fgroup"><label>Ημ. Παράδοσης</label><input type="text" id="m-deliv" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
+      <div class="fgroup"><label>Ημ. Καταχώρησης Παραγγελίας</label><input type="text" id="m-deliv" placeholder="ηη/μμ ή ηη/μμ/εε" onblur="onSmartDateBlur(this)" autocomplete="off"></div>
       <div class="fgroup"><label>Αναθρεπτήριο</label>
         <select id="m-flock"><option value="">—</option><option>Θ1</option><option>Θ2</option><option>Θ3</option><option>Θ4</option><option>Α1</option></select></div>
       <div class="fgroup"><label>Πελάτης</label><input type="text" id="m-customer"></div>
@@ -1164,15 +1164,15 @@ function sortBy(col) { if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1
 
 function getFiltered() {
   const raw = (document.getElementById('search').value || '').trim();
-  // split on comma (with optional trailing space), filter empty terms
+  // split on comma (with optional space), filter empty — ALL terms must match (AND logic)
   const terms = raw ? raw.split(/,\s*/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
   const ff = document.getElementById('filt-flock').value;
   const fo = document.getElementById('filt-ordered').value;
   return data.filter(r => {
     if (terms.length) {
       const searchStr = (Object.values(r).join(' ') + ' ' + flockLabel(r)).toLowerCase();
-      // every term must match (AND logic within each search, OR across comma terms = any term matches)
-      if (!terms.some(t => searchStr.includes(t))) return false;
+      // every term must be found — narrows down progressively
+      if (!terms.every(t => searchStr.includes(t))) return false;
     }
     if (ff && flockLabel(r) !== ff) return false;
     if (fo==='ΝΑΙ' && r.paragelia!=='ΝΑΙ') return false;
@@ -1543,7 +1543,7 @@ const BATCH_FIELDS = [
   { key:'hm_ekk',       label:'Ημ. Εκκόλαψης',    type:'date'   },
   { key:'hm_emv',       label:'Ημ. Εμβολιασμού',  type:'date'   },
   { key:'hm_paragelia', label:'Ημ. Παραγγελίας',  type:'date'   },
-  { key:'hm_par',       label:'Ημ. Παράδοσης',    type:'date'   },
+  { key:'hm_par',       label:'Ημ. Καταχώρησης Παραγγελίας', type:'date'   },
   { key:'anath',        label:'Αναθρεπτήριο',      type:'select', options:['','Θ1','Θ2','Θ3','Θ4','Α1'] },
   { key:'posotita',     label:'Ποσότητα',          type:'qty'    },
   { key:'pelatis',      label:'Πελάτης',           type:'text'   },
