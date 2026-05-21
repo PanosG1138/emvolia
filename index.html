@@ -602,7 +602,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
   <div class="toolbar">
     <div class="search-wrap">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="search" placeholder="Αναζήτηση εμβολίου, πελάτη, αναθρεπτηρίου…" oninput="render()">
+      <input type="text" id="search" placeholder="Αναζήτηση… εμβ:Μάιος  παρ:Ιούνιος" oninput="render()">
     </div>
     <select class="filter-sel" id="filt-flock" onchange="render()" style="min-width:160px">
       <option value="">Όλα τα αναθρεπτήρια</option>
@@ -1294,27 +1294,7 @@ function populateFlockFilter() {
 
 function sortBy(col) { if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;} render(); }
 
-function getFiltered() {
-  const raw = (document.getElementById('search').value || '').trim();
-  // split on comma, resolve month names, AND logic — all terms must match
-  const terms = raw
-    ? raw.split(/,\s*/).map(t => resolveSearchTerm(t.trim())).filter(Boolean)
-    : [];
-  const ff = document.getElementById('filt-flock').value;
-  const fo = document.getElementById('filt-ordered').value;
-  return data.filter(r => {
-    if (terms.length) {
-      const searchStr = (Object.values(r).join(' ') + ' ' + flockLabel(r)).toLowerCase();
-      if (!terms.every(t => searchStr.includes(t.toLowerCase()))) return false;
-    }
-    if (ff && flockLabel(r) !== ff) return false;
-    if (fo==='ΝΑΙ' && r.paragelia!=='ΝΑΙ') return false;
-    if (fo==='-'   && r.paragelia==='ΝΑΙ') return false;
-    return true;
-  });
-}
-
-// rebuild hatch date datalist from existing data (sorted, unique, displayed as dd/mm/yyyy)
+// ── RESET FORM (KEEP STEP 1) from existing data (sorted, unique, displayed as dd/mm/yyyy)
 function populateHatchList() {
   const dl = document.getElementById('hatch-list');
   if (!dl) return;
@@ -1941,14 +1921,64 @@ const MONTH_MAP = {
   'δεκεμβριος':'12','δεκέμβριος':'12','december':'12','dec':'12',
 };
 
-// Resolves a search term: if it's a month name, return the month number; else return as-is
-function resolveSearchTerm(t) {
-  const lower = t.toLowerCase().replace(/[άέήίόύώ]/g, c =>
+// Resolves a plain month name to a zero-padded month number (e.g. "Μάιος" → "05")
+// Returns null if the input is not a month name
+function resolveMonth(t) {
+  const norm = t.toLowerCase().replace(/[άέήίόύώ]/g, c =>
     ({ά:'α',έ:'ε',ή:'η',ί:'ι',ό:'ο',ύ:'υ',ώ:'ω'}[c]||c));
-  return MONTH_MAP[lower] || MONTH_MAP[t.toLowerCase()] || t;
+  return MONTH_MAP[norm] || MONTH_MAP[t.toLowerCase()] || null;
 }
 
-// ── RESET FORM (KEEP STEP 1) ─────────────────────────────────────
+// Prefixes for targeted date-column search:
+//   εμβ: / emv:  → match only in hm_emv (vaccination date)
+//   παρ: / ord:  → match only in hm_paragelia (order date)
+// No prefix → search everything (existing behaviour), including plain month names
+const PREFIX_VACC  = /^(εμβ|emv):/i;
+const PREFIX_ORD   = /^(παρ|ord):/i;
+
+function parseTerm(raw) {
+  // returns { type: 'vacc'|'ord'|'all', value: string }
+  if (PREFIX_VACC.test(raw)) {
+    const val = raw.replace(PREFIX_VACC, '').trim();
+    return { type: 'vacc', value: resolveMonth(val) || val.toLowerCase() };
+  }
+  if (PREFIX_ORD.test(raw)) {
+    const val = raw.replace(PREFIX_ORD, '').trim();
+    return { type: 'ord',  value: resolveMonth(val) || val.toLowerCase() };
+  }
+  // plain month name → resolve but still search everything
+  return { type: 'all',  value: resolveMonth(raw) || raw.toLowerCase() };
+}
+
+function getFiltered() {
+  const raw = (document.getElementById('search').value || '').trim();
+  const terms = raw
+    ? raw.split(/,\s*/).map(t => parseTerm(t.trim())).filter(t => t.value)
+    : [];
+  const ff = document.getElementById('filt-flock').value;
+  const fo = document.getElementById('filt-ordered').value;
+  return data.filter(r => {
+    if (terms.length) {
+      for (const t of terms) {
+        let match;
+        if (t.type === 'vacc') {
+          match = (r.hm_emv || '').includes(t.value);
+        } else if (t.type === 'ord') {
+          match = (r.hm_paragelia || '').includes(t.value);
+        } else {
+          const searchStr = (Object.values(r).join(' ') + ' ' + flockLabel(r)).toLowerCase();
+          match = searchStr.includes(t.value);
+        }
+        if (!match) return false;
+      }
+    }
+    if (ff && flockLabel(r) !== ff) return false;
+    if (fo==='ΝΑΙ' && r.paragelia!=='ΝΑΙ') return false;
+    if (fo==='-'   && r.paragelia==='ΝΑΙ') return false;
+    return true;
+  });
+}
+
 function resetForm() {
   // clears step 2 and 3 only — keeps hatch date, flock, vacc date, order date
   ['f-vaccine','f-customer','f-qty','f-supplier','f-notes']
