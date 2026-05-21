@@ -95,7 +95,7 @@ body{
 }
 
 /* ── LAYOUT ── */
-.shell{display:grid;grid-template-columns:var(--sidebar-w,300px) 1fr;grid-template-rows:auto 1fr;min-height:100vh;transition:grid-template-columns 0.2s ease}
+.shell{display:grid;grid-template-columns:var(--sidebar-w,300px) 1fr;grid-template-rows:auto 1fr;height:100vh;overflow:hidden;transition:grid-template-columns 0.2s ease}
 .shell.collapsed{--sidebar-w:0px}
 
 /* ── HEADER ── */
@@ -230,9 +230,13 @@ textarea{resize:vertical;min-height:44px;font-size:13px}
 .btn-cancel:hover{background:var(--gh-canvas-default);color:var(--gh-fg-default);border-color:var(--gh-border-default)}
 
 /* ── MAIN ── */
-.main{grid-column:2;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:10px}
-
-/* Toolbar */
+.main{grid-column:2;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:10px;height:100%}
+.tbl-outer{overflow:auto;border:1px solid var(--gh-border-default);border-radius:var(--rs);flex:1;min-height:0}
+/* Total footer row */
+tfoot tr{background:var(--gh-canvas-subtle);border-top:2px solid var(--gh-border-default)}
+tfoot td{padding:7px 12px;font-size:13px;font-weight:600;color:var(--gh-fg-default)}
+.total-label{color:var(--gh-fg-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.05em}
+.total-val{color:var(--gh-accent-fg);font-size:14px}
 .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .search-wrap{position:relative;flex:1;min-width:200px}
 .search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gh-fg-muted);pointer-events:none}
@@ -545,7 +549,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
     <div class="divider"></div>
     <div class="sec-label">Βήμα 3 — Λεπτομέρειες</div>
     <div class="row2">
-      <div class="fgroup"><label>Πελάτης</label><input type="text" id="f-customer" placeholder="Προαιρετικό…"></div>
+      <div class="fgroup"><label>Πελάτης</label><input type="text" id="f-customer" list="customer-list" placeholder="Προαιρετικό…"><datalist id="customer-list"></datalist></div>
       <div class="fgroup"><label>Ποσότητα</label><input type="text" id="f-qty" placeholder="π.χ. 75000" onblur="fmtQty(this)" onfocus="stripQty(this)"></div>
     </div>
     <div class="fgroup">
@@ -613,6 +617,11 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
           <th style="text-align:right">Ενέργειες</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
+        <tfoot id="tfoot" style="display:none"><tr>
+          <td colspan="5" class="total-label">Σύνολο ποσότητας</td>
+          <td class="total-val" id="total-qty">—</td>
+          <td colspan="9"></td>
+        </tr></tfoot>
       </table>
       <div id="empty-state" class="empty-state" style="display:none">💉 Δεν βρέθηκαν εγγραφές.</div>
     </div>
@@ -799,7 +808,7 @@ function fmtDt(iso) {
   if(!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleDateString('el-GR',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' ' +
-         d.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
+         d.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit',hour12:false});
 }
 
 // ── SMART DATE PARSING ────────────────────────────────────────────
@@ -841,7 +850,19 @@ function onSmartDateBlur(el) {
   el.style.borderColor = ''; // clear any error state
   // trigger downstream logic (order date calc, steps)
   if (el.id === 'f-vacc' || el.id === 'f-hatch') onDateChange();
+  if (el.id === 'f-hatch') autoFillFlock(el.dataset.iso);
   if (el.id === 'm-vacc') modalDateChange();
+}
+
+function autoFillFlock(hatchIso) {
+  if (!hatchIso) return;
+  const flockSel = document.getElementById('f-flock');
+  if (flockSel.value) return;
+  const match = data.find(r => r.hm_ekk === hatchIso && r.anath);
+  if (match) {
+    flockSel.value = match.anath;
+    onFieldChange();
+  }
 }
 
 function onDateChange() {
@@ -921,19 +942,21 @@ function guardConnected() {
 // ── ADD ───────────────────────────────────────────────────────────
 async function addEntry() {
   if (!guardConnected()) return;
-  const vaccine = document.getElementById('f-vaccine').value.trim();
+  const vaccineRaw = document.getElementById('f-vaccine').value.trim();
   const hatch   = document.getElementById('f-hatch').dataset.iso  || '';
   const vacc    = document.getElementById('f-vacc').dataset.iso   || '';
   const flock   = document.getElementById('f-flock').value;
-  if (!vaccine) { toast('Εισάγετε όνομα εμβολίου', true); return; }
-  if (!hatch)   { toast('Εισάγετε ημερομηνία εκκόλαψης', true); return; }
-  if (!flock)   { toast('Επιλέξτε αναθρεπτήριο', true); return; }
-  if (!vacc)    { toast('Εισάγετε ημερομηνία εμβολιασμού', true); return; }
+  if (!vaccineRaw) { toast('Εισάγετε όνομα εμβολίου', true); return; }
+  if (!hatch)      { toast('Εισάγετε ημερομηνία εκκόλαψης', true); return; }
+  if (!flock)      { toast('Επιλέξτε αναθρεπτήριο', true); return; }
+  if (!vacc)       { toast('Εισάγετε ημερομηνία εμβολιασμού', true); return; }
+
+  // split by comma (with optional space after comma)
+  const vaccines = vaccineRaw.split(/,\s*/).map(v => v.trim()).filter(Boolean);
 
   const now = new Date().toISOString();
-  const row = {
-    emvolio: vaccine, hm_ekk: hatch||null, hm_emv: vacc||null,
-    hm_par: null,
+  const baseRow = {
+    hm_ekk: hatch||null, hm_emv: vacc||null, hm_par: null,
     anath: flock, pelatis: document.getElementById('f-customer').value.trim()||null,
     posotita: rawQty(document.getElementById('f-qty').value),
     sxolia_panos: document.getElementById('f-notes').value.trim()||null,
@@ -947,17 +970,20 @@ async function addEntry() {
   };
 
   const btn = document.getElementById('btn-add');
-  btn.disabled = true; btn.textContent = 'Αποθήκευση…';
+  btn.disabled = true;
+  btn.textContent = vaccines.length > 1 ? `Αποθήκευση ${vaccines.length}…` : 'Αποθήκευση…';
   setSyncStatus('loading', 'Αποθήκευση…');
   try {
-    const [inserted] = await sbInsert(row);
-    // log history
-    await sbHInsert({ row_id: inserted.id, action: 'created', user_name: currentUser, ts: now });
-    pushUndo({ type: 'add', after: inserted });
-    data.unshift({ ...inserted, _new: true });
+    for (const vaccine of vaccines) {
+      const row = { ...baseRow, emvolio: vaccine };
+      const [inserted] = await sbInsert(row);
+      await sbHInsert({ row_id: inserted.id, action: 'created', user_name: currentUser, ts: now });
+      pushUndo({ type: 'add', after: inserted });
+      data.unshift({ ...inserted, _new: true });
+    }
     resetForm(); render();
     setSyncStatus('ok', 'Αποθηκεύτηκε ✓');
-    toast('Η παραγγελία προστέθηκε!');
+    toast(vaccines.length > 1 ? `${vaccines.length} εμβόλια προστέθηκαν!` : 'Η παραγγελία προστέθηκε!');
   } catch (e) {
     setSyncStatus('err', 'Σφάλμα');
     toast('Σφάλμα: ' + e.message, true);
@@ -1137,13 +1163,17 @@ function populateFlockFilter() {
 function sortBy(col) { if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;} render(); }
 
 function getFiltered() {
-  const q  = (document.getElementById('search').value||'').toLowerCase();
-  const ff = document.getElementById('filt-flock').value;   // now a combined label
+  const raw = (document.getElementById('search').value || '').trim();
+  // split on comma (with optional trailing space), filter empty terms
+  const terms = raw ? raw.split(/,\s*/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+  const ff = document.getElementById('filt-flock').value;
   const fo = document.getElementById('filt-ordered').value;
   return data.filter(r => {
-    // search includes the combined flock label
-    const searchStr = Object.values(r).join(' ') + ' ' + flockLabel(r);
-    if (q && !searchStr.toLowerCase().includes(q)) return false;
+    if (terms.length) {
+      const searchStr = (Object.values(r).join(' ') + ' ' + flockLabel(r)).toLowerCase();
+      // every term must match (AND logic within each search, OR across comma terms = any term matches)
+      if (!terms.some(t => searchStr.includes(t))) return false;
+    }
     if (ff && flockLabel(r) !== ff) return false;
     if (fo==='ΝΑΙ' && r.paragelia!=='ΝΑΙ') return false;
     if (fo==='-'   && r.paragelia==='ΝΑΙ') return false;
@@ -1169,9 +1199,25 @@ function populateHatchList() {
   });
 }
 
+// rebuild customer datalist from existing data
+function populateCustomerList() {
+  const dl = document.getElementById('customer-list');
+  if (!dl) return;
+  const seen = new Set();
+  dl.innerHTML = '';
+  data.filter(r => r.pelatis).forEach(r => {
+    if (seen.has(r.pelatis)) return;
+    seen.add(r.pelatis);
+    const opt = document.createElement('option');
+    opt.value = r.pelatis;
+    dl.appendChild(opt);
+  });
+}
+
 function render() {
   populateFlockFilter();
   populateHatchList();
+  populateCustomerList();
   const SC = ['emvolio','hm_ekk','hm_emv','hm_paragelia','hm_par','pelatis','posotita','paragelia','created_by'];
   SC.forEach(c => { const e=document.getElementById('s-'+c); if(e) e.textContent=sortCol===c?(sortDir===1?'↑':'↓'):''; });
 
@@ -1229,6 +1275,27 @@ function render() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML='';
   tbody.appendChild(frag);
+
+  // totals footer — show when filtered or multiple rows selected
+  const isFiltered = getFiltered().length < data.length ||
+                     document.getElementById('search').value.trim() ||
+                     document.getElementById('filt-flock').value ||
+                     document.getElementById('filt-ordered').value;
+  const showTotal = isFiltered || selectedIds.size > 1;
+  const tfoot = document.getElementById('tfoot');
+  tfoot.style.display = showTotal ? '' : 'none';
+  if (showTotal) {
+    // sum qty from current visible rows OR selected rows if any selected
+    const src = selectedIds.size > 1
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    let total = 0;
+    src.forEach(r => {
+      const n = parseInt(String(r.posotita || '').replace(/\./g, ''), 10);
+      if (!isNaN(n)) total += n;
+    });
+    document.getElementById('total-qty').textContent = total > 0 ? total.toLocaleString('el-GR') : '—';
+  }
 
   const total=data.length, confirmed=data.filter(r=>r.paragelia==='ΝΑΙ').length;
   document.getElementById('stat-total').textContent   = total;
