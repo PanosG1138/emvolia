@@ -288,7 +288,6 @@ tbody tr.new-row{animation:rowIn 0.4s ease}
 @keyframes rowIn{from{background:rgba(56,139,253,0.15)}to{background:transparent}}
 td{padding:7px 12px;color:var(--gh-fg-default);max-width:160px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;font-size:13px}
 td.vacc{font-weight:600;color:var(--gh-fg-default)}
-td.meta-cell{max-width:130px}
 
 /* Badges */
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;line-height:18px}
@@ -363,6 +362,14 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 }
 .btn-primary:hover{background:#388bfd}
 .btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.btn-danger{
+  height:32px;padding:0 16px;
+  background:var(--gh-danger-subtle);color:var(--gh-danger-fg);
+  border:1px solid rgba(248,81,73,0.4);border-radius:var(--rs);
+  font-family:'Inter',system-ui,sans-serif;font-weight:500;font-size:13px;
+  cursor:pointer;transition:background 0.15s;
+}
+.btn-danger:hover{background:rgba(248,81,73,0.2)}
 .btn-secondary{
   height:32px;padding:0 16px;
   background:var(--gh-canvas-subtle);color:var(--gh-fg-default);
@@ -593,7 +600,6 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
   <div class="sidebar-footer">
     <button class="btn-submit" id="btn-add" onclick="addEntry()">+ Προσθήκη στον Πίνακα</button>
     <button class="btn-cancel" onclick="resetForm()">Καθαρισμός (διατήρηση ημερομηνιών)</button>
-    <button class="btn-cancel" onclick="resetFormFull()" style="color:var(--gh-danger-fg);border-color:rgba(248,81,73,0.3)">Καθαρισμός όλων</button>
   </div>
 </aside>
 
@@ -602,7 +608,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
   <div class="toolbar">
     <div class="search-wrap">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="search" placeholder="Αναζήτηση… εμβ:Μάιος  παρ:Ιούνιος" oninput="render()">
+      <input type="text" id="search" placeholder="Αναζήτηση…" oninput="render()">
     </div>
     <select class="filter-sel" id="filt-flock" onchange="render()" style="min-width:160px">
       <option value="">Όλα τα αναθρεπτήρια</option>
@@ -613,8 +619,8 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
       <option value="-">Εκκρεμείς</option>
     </select>
     <button class="btn-tool" onclick="loadData()">↺ Ανανέωση</button>
-    <button class="btn-tool" id="btn-undo" onclick="undo()" disabled title="Αναίρεση (Ctrl+Z)">↩ Αναίρεση</button>
-    <button class="btn-tool" id="btn-redo" onclick="redo()" disabled title="Επανάληψη (Ctrl+Y)">↪ Επανάληψη</button>
+    <button class="btn-tool" id="btn-undo" onclick="undo()" disabled title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="btn-tool" id="btn-redo" onclick="redo()" disabled title="Redo (Ctrl+Y)">↪ Redo</button>
     <button class="btn-tool" onclick="exportCSV()">↓ CSV</button>
   </div>
 
@@ -644,14 +650,13 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
           <th>Προμηθευτής</th>
           <th>Ψυγείο</th>
           <th>Σχόλια Ελένη</th>
-          <th onclick="sortBy('created_by')">Καταχώρηση<span class="arr" id="s-created_by"></span></th>
           <th style="text-align:right">Ενέργειες</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
         <tfoot id="tfoot" style="display:none"><tr>
           <td colspan="5" class="total-label">Σύνολο ποσότητας</td>
           <td class="total-val" id="total-qty">—</td>
-          <td colspan="9"></td>
+          <td colspan="8"></td>
         </tr></tfoot>
       </table>
       <div id="empty-state" class="empty-state" style="display:none">💉 Δεν βρέθηκαν εγγραφές.</div>
@@ -690,6 +695,8 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
       </div>
     </div>
     <div class="modal-actions">
+      <button class="btn-danger" id="btn-modal-delete" onclick="modalDelete()">Διαγραφή</button>
+      <div style="flex:1"></div>
       <button class="btn-secondary" onclick="closeModal()">Ακύρωση</button>
       <button class="btn-primary" id="btn-save" onclick="saveEdit()">Αποθήκευση</button>
     </div>
@@ -1294,7 +1301,13 @@ function populateFlockFilter() {
 
 function sortBy(col) { if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;} render(); }
 
-// ── RESET FORM (KEEP STEP 1) from existing data (sorted, unique, displayed as dd/mm/yyyy)
+function modalDelete() {
+  // close edit modal and open the delete confirm with the current editId
+  closeModal();
+  promptDelete(editId);
+}
+
+// rebuild hatch date datalist from existing data (sorted, unique, displayed as dd/mm/yyyy)
 function populateHatchList() {
   const dl = document.getElementById('hatch-list');
   if (!dl) return;
@@ -1331,7 +1344,7 @@ function render() {
   populateFlockFilter();
   populateHatchList();
   populateCustomerList();
-  const SC = ['emvolio','hm_ekk','hm_emv','hm_paragelia','hm_par','pelatis','posotita','paragelia','created_by'];
+  const SC = ['emvolio','hm_ekk','hm_emv','hm_paragelia','hm_par','pelatis','posotita','paragelia'];
   SC.forEach(c => { const e=document.getElementById('s-'+c); if(e) e.textContent=sortCol===c?(sortDir===1?'↑':'↓'):''; });
 
   const rows = getFiltered().sort((a,b) => {
@@ -1350,25 +1363,10 @@ function render() {
     if (fri) tr.classList.add('row-arrived');
     const fl = flockLabel(r);
 
-    // meta cell
-    let metaHtml = '';
-    if (r.created_by) {
-      metaHtml = `<div class="meta-info">` +
-        `<span class="meta-user">${x(r.created_by)}</span>` +
-        `<span class="meta-date">${fmtDt(r.created_at)}</span>` +
-        (r.updated_by && r.updated_at !== r.created_at
-          ? `<span class="meta-edited">✎ ${x(r.updated_by)}</span>`
-          : '') +
-      `</div>`;
-    } else {
-      metaHtml = '<span style="color:var(--gh-fg-subtle)">—</span>';
-    }
-
     tr.setAttribute('data-id', r.id);
     tr.setAttribute('title', 'Διπλό κλικ για επεξεργασία');
     tr.style.cursor = 'default';
     tr.addEventListener('dblclick', e => {
-      // don't open edit if they double-clicked a button or checkbox
       if (e.target.closest('button, input[type=checkbox]')) return;
       editEntry(r.id);
     });
@@ -1386,11 +1384,7 @@ function render() {
       `<td style="color:var(--gh-fg-muted);font-size:11px">${x(r.promitheutis||'—')}</td>`+
       `<td><span class="badge ${fri?'b-yes':'b-no'}">${fri?'ΝΑΙ':'—'}</span></td>`+
       `<td style="color:var(--gh-fg-muted);font-size:11px" title="${x(r.sxolia_eleni||'')}">${x(r.sxolia_eleni||'—')}</td>`+
-      `<td class="meta-cell">${metaHtml}</td>`+
-      `<td><div class="row-actions">`+
-        `<button class="row-btn" onclick="editEntry(${r.id})">Επεξ.</button>`+
-        `<button class="row-btn del" onclick="promptDelete(${r.id})">Διαγρ.</button>`+
-      `</div></td>`;
+      `<td><div class="row-actions"><button class="row-btn" onclick="editEntry(${r.id})">Επεξ.</button></div></td>`;
     frag.appendChild(tr);
   });
 
@@ -1923,31 +1917,36 @@ const MONTH_MAP = {
 
 // Resolves a plain month name to a zero-padded month number (e.g. "Μάιος" → "05")
 // Returns null if the input is not a month name
+// Strip Greek accents and lowercase — makes all searches accent+case insensitive
+function normalize(s) {
+  return (s||'').toLowerCase()
+    .replace(/ά/g,'α').replace(/έ/g,'ε').replace(/ή/g,'η').replace(/ί/g,'ι')
+    .replace(/ό/g,'ο').replace(/ύ/g,'υ').replace(/ώ/g,'ω')
+    .replace(/ϊ/g,'ι').replace(/ϋ/g,'υ').replace(/ΐ/g,'ι').replace(/ΰ/g,'υ');
+}
+
 function resolveMonth(t) {
-  const norm = t.toLowerCase().replace(/[άέήίόύώ]/g, c =>
-    ({ά:'α',έ:'ε',ή:'η',ί:'ι',ό:'ο',ύ:'υ',ώ:'ω'}[c]||c));
-  return MONTH_MAP[norm] || MONTH_MAP[t.toLowerCase()] || null;
+  const n = normalize(t);
+  return MONTH_MAP[n] || null;
 }
 
 // Prefixes for targeted date-column search:
-//   εμβ: / emv:  → match only in hm_emv (vaccination date)
-//   παρ: / ord:  → match only in hm_paragelia (order date)
-// No prefix → search everything (existing behaviour), including plain month names
-const PREFIX_VACC  = /^(εμβ|emv):/i;
-const PREFIX_ORD   = /^(παρ|ord):/i;
+//   εμβ: / emv:  → hm_emv (vaccination date)
+//   παρ: / ord:  → hm_paragelia (order date)
+// No prefix → search everything
+const PREFIX_VACC = /^(εμβ|emv):/i;
+const PREFIX_ORD  = /^(παρ|ord):/i;
 
 function parseTerm(raw) {
-  // returns { type: 'vacc'|'ord'|'all', value: string }
   if (PREFIX_VACC.test(raw)) {
     const val = raw.replace(PREFIX_VACC, '').trim();
-    return { type: 'vacc', value: resolveMonth(val) || val.toLowerCase() };
+    return { type: 'vacc', value: resolveMonth(val) || normalize(val) };
   }
   if (PREFIX_ORD.test(raw)) {
     const val = raw.replace(PREFIX_ORD, '').trim();
-    return { type: 'ord',  value: resolveMonth(val) || val.toLowerCase() };
+    return { type: 'ord',  value: resolveMonth(val) || normalize(val) };
   }
-  // plain month name → resolve but still search everything
-  return { type: 'all',  value: resolveMonth(raw) || raw.toLowerCase() };
+  return { type: 'all', value: resolveMonth(raw) || normalize(raw) };
 }
 
 function getFiltered() {
@@ -1966,7 +1965,8 @@ function getFiltered() {
         } else if (t.type === 'ord') {
           match = (r.hm_paragelia || '').includes(t.value);
         } else {
-          const searchStr = (Object.values(r).join(' ') + ' ' + flockLabel(r)).toLowerCase();
+          // normalize the whole row's data for accent+case insensitive matching
+          const searchStr = normalize(Object.values(r).join(' ') + ' ' + flockLabel(r));
           match = searchStr.includes(t.value);
         }
         if (!match) return false;
@@ -1991,21 +1991,6 @@ function resetForm() {
   const dl = document.getElementById('vaccine-suggest');
   if (dl) dl.innerHTML = '';
   updateSteps();
-}
-
-// ── RESET FORM FULL (CLEAR EVERYTHING) ───────────────────────────
-function resetFormFull() {
-  ['f-hatch','f-vacc','f-vaccine','f-customer','f-qty','f-supplier','f-notes']
-    .forEach(id => {
-      const e = document.getElementById(id); if(!e) return;
-      e.value = ''; e.style.borderColor = '';
-      if (e.dataset) e.dataset.iso = '';
-    });
-  document.getElementById('f-flock').value = '';
-  const od = document.getElementById('f-orderdate'); od.value=''; od.dataset.iso='';
-  const dl = document.getElementById('vaccine-suggest');
-  if (dl) dl.innerHTML = '';
-  toggleOrdered(''); toggleFridge(''); updateSteps();
 }
 
 // ── THEME ─────────────────────────────────────────────────────────
