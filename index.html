@@ -152,13 +152,12 @@ header{
 .sidebar{
   grid-column:1;background:var(--gh-canvas-subtle);
   border-right:1px solid var(--gh-border-default);
-  overflow:hidden;max-height:calc(100vh - 48px);
-  position:sticky;top:48px;
-  transition:all 0.2s ease;display:flex;flex-direction:column;
-  position:relative;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  min-height:0;
 }
 .shell.collapsed .sidebar{border-right:none}
-.sidebar-inner{padding:16px;overflow-y:auto;flex:1;min-width:300px;min-height:0}
+.sidebar-inner{padding:16px;overflow-y:auto;flex:1;min-width:300px;min-height:0;overflow-x:visible}
 .sidebar-footer{padding:12px 16px;border-top:1px solid var(--gh-border-muted);background:var(--gh-canvas-subtle);display:flex;flex-direction:column;gap:6px;flex-shrink:0;min-width:300px}
 
 /* Form */
@@ -231,7 +230,7 @@ textarea{resize:vertical;min-height:44px;font-size:13px}
 .btn-cancel:hover{background:var(--gh-canvas-default);color:var(--gh-fg-default);border-color:var(--gh-border-default)}
 
 /* ── MAIN ── */
-.main{grid-column:2;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:10px;height:100%}
+.main{grid-column:2;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:10px;min-height:0}
 .tbl-outer{overflow:auto;border:1px solid var(--gh-border-default);border-radius:var(--rs);flex:1;min-height:0}
 /* Total footer row */
 tfoot tr{background:var(--gh-canvas-subtle);border-top:2px solid var(--gh-border-default)}
@@ -426,18 +425,19 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 .name-opt-btn:hover{background:var(--gh-accent-subtle);border-color:var(--gh-accent-emphasis);color:var(--gh-accent-fg)}
 
 /* ── CUSTOM AUTOCOMPLETE DROPDOWN ── */
-.ac-wrap{position:relative}
+.ac-wrap{position:relative;z-index:1}
 .ac-dropdown{
-  position:absolute;top:100%;left:0;right:0;z-index:300;
+  position:absolute;top:100%;left:0;right:0;z-index:400;
   background:var(--gh-canvas-default);
   border:1px solid var(--gh-border-default);
-  border-top:none;border-radius:0 0 var(--rs) var(--rs);
+  border-radius:0 0 var(--rs) var(--rs);
   max-height:200px;overflow-y:auto;
-  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  width:100%;
 }
 .ac-option{
   padding:7px 10px;font-size:13px;color:var(--gh-fg-default);cursor:pointer;
-  transition:background 0.1s;
+  transition:background 0.1s;white-space:nowrap;
 }
 .ac-option:hover,.ac-option.active{background:var(--gh-accent-subtle);color:var(--gh-accent-fg)}
 .changelog-modal{background:var(--gh-canvas-subtle);border:1px solid var(--gh-border-default);border-radius:var(--r);padding:24px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column}
