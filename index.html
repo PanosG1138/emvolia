@@ -1787,26 +1787,88 @@ const VACCINE_OPTIONS = [
   'RESPIVAC','SALENVAC ETC','SALMOVAC','SG-9R','TARTYLL','TS-11','VAXSAFE','VECTROMUNE'
 ];
 
+let vacDropIdx = -1; // keyboard nav index
+
 function onVaccineInput(el) {
-  // get the last token after the last comma
   const parts = el.value.split(',');
-  const lastToken = parts[parts.length - 1].trim().toLowerCase();
+  const lastToken = parts[parts.length - 1].trim();
   const prefix = parts.slice(0, -1).map(p => p.trim()).join(', ');
+  vacDropIdx = -1;
 
-  const dl = document.getElementById('vaccine-suggest');
-  dl.innerHTML = '';
-  if (lastToken.length === 0) { onFieldChange(); return; }
+  const drop = document.getElementById('vac-dropdown');
+  if (!lastToken) { drop.style.display = 'none'; onFieldChange(); return; }
 
-  VACCINE_OPTIONS
-    .filter(v => v.toLowerCase().includes(lastToken))
-    .forEach(v => {
-      const opt = document.createElement('option');
-      // value = already-typed prefix + this suggestion
-      opt.value = prefix ? prefix + ', ' + v : v;
-      opt.label = v;
-      dl.appendChild(opt);
+  const matches = VACCINE_OPTIONS.filter(v =>
+    v.toLowerCase().includes(lastToken.toLowerCase())
+  );
+
+  if (!matches.length) { drop.style.display = 'none'; onFieldChange(); return; }
+
+  drop.innerHTML = '';
+  matches.forEach((v, i) => {
+    const div = document.createElement('div');
+    div.className = 'ac-option';
+    div.textContent = v;
+    div.dataset.idx = i;
+    div.addEventListener('mousedown', e => {
+      e.preventDefault(); // prevent blur firing before click
+      selectVaccine(el, prefix, v);
     });
+    drop.appendChild(div);
+  });
+  drop.style.display = 'block';
   onFieldChange();
+}
+
+function selectVaccine(el, prefix, vaccine) {
+  el.value = prefix ? prefix + ', ' + vaccine + ', ' : vaccine + ', ';
+  // move cursor to end
+  el.setSelectionRange(el.value.length, el.value.length);
+  document.getElementById('vac-dropdown').style.display = 'none';
+  vacDropIdx = -1;
+  onFieldChange();
+}
+
+function onVaccineKey(e) {
+  const drop = document.getElementById('vac-dropdown');
+  if (drop.style.display === 'none') return;
+  const opts = drop.querySelectorAll('.ac-option');
+  if (!opts.length) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    vacDropIdx = Math.min(vacDropIdx + 1, opts.length - 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    vacDropIdx = Math.max(vacDropIdx - 1, 0);
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    if (vacDropIdx >= 0) {
+      e.preventDefault();
+      const el = document.getElementById('f-vaccine');
+      const parts = el.value.split(',');
+      const prefix = parts.slice(0, -1).map(p => p.trim()).join(', ');
+      selectVaccine(el, prefix, opts[vacDropIdx].textContent);
+      return;
+    }
+    drop.style.display = 'none';
+    return;
+  } else if (e.key === 'Escape') {
+    drop.style.display = 'none';
+    vacDropIdx = -1;
+    return;
+  } else { return; }
+
+  // update highlight
+  opts.forEach((o, i) => o.classList.toggle('active', i === vacDropIdx));
+  if (vacDropIdx >= 0) opts[vacDropIdx].scrollIntoView({ block: 'nearest' });
+}
+
+function scheduleCloseVacDrop() {
+  // small delay so mousedown on option fires before blur closes dropdown
+  setTimeout(() => {
+    document.getElementById('vac-dropdown').style.display = 'none';
+    vacDropIdx = -1;
+  }, 150);
 }
 
 // ── CUSTOMER SMART DATALIST ───────────────────────────────────────
@@ -2006,9 +2068,8 @@ function resetForm() {
       e.value = ''; e.style.borderColor = '';
       if (e.dataset) e.dataset.iso = '';
     });
-  // also clear vaccine suggest datalist
-  const dl = document.getElementById('vaccine-suggest');
-  if (dl) dl.innerHTML = '';
+  // close any open vaccine dropdown
+  document.getElementById('vac-dropdown').style.display = 'none';
   updateSteps();
 }
 
