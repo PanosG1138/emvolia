@@ -1,6 +1,6 @@
 """
 ΕΜΒΟΛΙΑ — Daily Supabase → Google Sheets Backup
-Fetches all rows from the emvolia table and writes them to a Google Sheet.
+Fetches all rows from emvolia and emvolia_history and writes to Google Sheets.
 Runs via GitHub Actions every night.
 """
 
@@ -16,100 +16,111 @@ SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 SHEET_ID     = os.environ["SHEET_ID"]
 
-# Column order — must match Google Sheet headers
-COLUMNS = [
+SB_HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+}
+
+# ── COLUMN DEFINITIONS ────────────────────────────────────────────
+DATA_COLUMNS = [
     "id", "emvolio", "hm_ekk", "hm_emv", "hm_par", "hm_paragelia",
     "anath", "pelatis", "posotita", "sxolia_panos", "sxolia_eleni",
     "promitheutis", "paragelia", "psygeio",
     "created_by", "created_at", "updated_by", "updated_at",
 ]
-
-HEADERS_GR = [
+DATA_HEADERS = [
     "ID", "ΕΜΒΟΛΙΟ", "ΗΜ. ΕΚΚΟΛΑΨΗΣ", "ΗΜ. ΕΜΒΟΛΙΑΣΜΟΥ", "ΗΜ. ΚΑΤΑΧΩΡΗΣΗΣ",
     "ΗΜ. ΠΑΡΑΓΓΕΛΙΑΣ", "ΑΝΑΘΡΕΠΤΗΡΙΟ", "ΠΕΛΑΤΗΣ", "ΠΟΣΟΤΗΤΑ",
     "ΣΧΟΛΙΑ ΠΑΝΟΣ", "ΣΧΟΛΙΑ ΕΛΕΝΗ", "ΠΡΟΜΗΘΕΥΤΗΣ", "ΠΑΡΑΓΓΕΛΙΑ", "ΨΥΓΕΙΟ",
     "ΔΗΜΙΟΥΡΓΗΘΗΚΕ ΑΠΟ", "ΔΗΜΙΟΥΡΓΗΘΗΚΕ", "ΕΠΕΞΕΡΓΑΣΤΗΚΕ ΑΠΟ", "ΕΠΕΞΕΡΓΑΣΤΗΚΕ",
 ]
 
-# ── FETCH FROM SUPABASE ───────────────────────────────────────────
-def fetch_data():
-    url = f"{SUPABASE_URL}/rest/v1/emvolia?order=hm_emv.asc"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-    }
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    print(f"✓ Fetched {len(data)} rows from Supabase")
-    return data
+HISTORY_COLUMNS = ["id", "row_id", "action", "user_name", "ts", "changes_json"]
+HISTORY_HEADERS = ["ID", "ROW ID", "ΕΝΕΡΓΕΙΑ", "ΧΡΗΣΤΗΣ", "ΧΡΟΝΟΣ", "ΑΛΛΑΓΕΣ (JSON)"]
 
-# ── WRITE TO GOOGLE SHEETS ────────────────────────────────────────
-def write_to_sheet(data):
-    creds_json = json.loads(os.environ["GOOGLE_CREDENTIALS"])
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds = Credentials.from_service_account_info(creds_json, scopes=scopes)
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(SHEET_ID)
+# ── FETCH ─────────────────────────────────────────────────────────
+def fetch(table, order):
+    url = f"{SUPABASE_URL}/rest/v1/{table}?order={order}"
+    r = requests.get(url, headers=SB_HEADERS, timeout=30)
+    r.raise_for_status()
+    rows = r.json()
+    print(f"  ✓ Fetched {len(rows)} rows from '{table}'")
+    return rows
 
-    # ── DATA SHEET ────────────────────────────────────────────────
+# ── WRITE SHEET TAB ───────────────────────────────────────────────
+def write_tab(sh, title, columns, headers, rows, header_col_count):
     try:
-        ws = sh.worksheet("Δεδομένα")
+        ws = sh.worksheet(title)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title="Δεδομένα", rows=5000, cols=len(COLUMNS))
+        ws = sh.add_worksheet(title=title, rows=10000, cols=len(columns))
 
-    # Build rows: header + data
-    rows = [HEADERS_GR]
-    for row in data:
-        rows.append([str(row.get(col, "") or "") for col in COLUMNS])
-
-    # Clear and rewrite
+    data = [headers] + [[str(r.get(c, "") or "") for c in columns] for r in rows]
     ws.clear()
-    ws.update("A1", rows, value_input_option="RAW")
+    ws.update("A1", data, value_input_option="RAW")
 
-    # Bold the header row
-    ws.format("A1:R1", {
+    col_letter = chr(ord('A') + header_col_count - 1)
+    ws.format(f"A1:{col_letter}1", {
         "textFormat": {"bold": True},
         "backgroundColor": {"red": 0.13, "green": 0.11, "blue": 0.14},
     })
+    print(f"  ✓ Wrote {len(rows)} rows to '{title}' tab")
+    return len(rows)
 
-    print(f"✓ Wrote {len(data)} rows to 'Δεδομένα' sheet")
+# ── MAIN ──────────────────────────────────────────────────────────
+def run_backup():
+    print("Connecting to Google Sheets…")
+    creds = Credentials.from_service_account_info(
+        json.loads(os.environ["GOOGLE_CREDENTIALS"]),
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+    )
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(SHEET_ID)
+    print("  ✓ Connected")
 
-    # ── LOG SHEET ─────────────────────────────────────────────────
+    print("\nFetching data from Supabase…")
+    emvolia = fetch("emvolia", "hm_emv.asc")
+    history = fetch("emvolia_history", "ts.desc")
+
+    print("\nWriting to Google Sheets…")
+    n_data    = write_tab(sh, "Δεδομένα",  DATA_COLUMNS,    DATA_HEADERS,    emvolia, len(DATA_COLUMNS))
+    n_history = write_tab(sh, "Ιστορικό",  HISTORY_COLUMNS, HISTORY_HEADERS, history, len(HISTORY_COLUMNS))
+
+    # ── LOG ───────────────────────────────────────────────────────
     try:
         log_ws = sh.worksheet("Log")
     except gspread.WorksheetNotFound:
-        log_ws = sh.add_worksheet(title="Log", rows=1000, cols=4)
-        log_ws.update("A1", [["Timestamp", "Rows", "Status", "Notes"]])
-        log_ws.format("A1:D1", {"textFormat": {"bold": True}})
+        log_ws = sh.add_worksheet(title="Log", rows=1000, cols=5)
+        log_ws.update("A1", [["Timestamp", "Εγγραφές", "Ιστορικό", "Status", "Notes"]])
+        log_ws.format("A1:E1", {"textFormat": {"bold": True}})
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    log_ws.append_row([timestamp, len(data), "✓ Success", ""])
-    print(f"✓ Logged backup run at {timestamp}")
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    log_ws.append_row([ts, n_data, n_history, "✓ Success", ""])
+    print(f"\n  ✓ Logged at {ts}")
+    return n_data, n_history
 
-# ── MAIN ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Starting ΕΜΒΟΛΙΑ backup...")
+    print("═" * 50)
+    print("ΕΜΒΟΛΙΑ Daily Backup")
+    print("═" * 50)
     try:
-        data = fetch_data()
-        write_to_sheet(data)
-        print(f"\n✓ Backup complete — {len(data)} rows saved to Google Sheets")
+        n_data, n_history = run_backup()
+        print(f"\n✓ Backup complete — {n_data} εγγραφές, {n_history} ιστορικό")
     except Exception as e:
-        # Log the failure too
         print(f"\n✗ Backup failed: {e}")
+        # Attempt to log failure to sheet
         try:
-            creds_json = json.loads(os.environ.get("GOOGLE_CREDENTIALS", "{}"))
-            if creds_json:
-                scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-                creds = Credentials.from_service_account_info(creds_json, scopes=scopes)
-                gc = gspread.authorize(creds)
-                sh = gc.open_by_key(os.environ["SHEET_ID"])
-                log_ws = sh.worksheet("Log")
-                timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                log_ws.append_row([timestamp, 0, "✗ Failed", str(e)])
+            creds = Credentials.from_service_account_info(
+                json.loads(os.environ.get("GOOGLE_CREDENTIALS", "{}")),
+                scopes=["https://www.googleapis.com/auth/spreadsheets"]
+            )
+            gc = gspread.authorize(creds)
+            sh = gc.open_by_key(os.environ["SHEET_ID"])
+            log_ws = sh.worksheet("Log")
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            log_ws.append_row([ts, 0, 0, "✗ Failed", str(e)])
         except Exception:
-            pass  # If even logging fails, the GitHub Actions log has the error
-        raise  # Re-raise so GitHub Actions marks the run as failed
+            pass
+        raise
