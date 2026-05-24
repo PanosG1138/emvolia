@@ -467,6 +467,39 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 .cl-to{color:var(--gh-success-fg);font-weight:500}
 .cl-empty{padding:24px;text-align:center;color:var(--gh-fg-muted);font-size:13px}
 .changelog-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--gh-border-muted);display:flex;justify-content:flex-end}
+
+/* ── MOBILE (≤768px) ── */
+@media (max-width: 768px) {
+  .shell{grid-template-columns:1fr;grid-template-rows:48px 1fr}
+  .sidebar{
+    position:fixed;top:48px;left:0;bottom:0;
+    width:min(320px,90vw);z-index:100;
+    transform:translateX(-100%);
+    transition:transform 0.25s ease;
+    box-shadow:4px 0 24px rgba(0,0,0,0.4);
+  }
+  .sidebar.mobile-open{transform:translateX(0)}
+  .mobile-backdrop{display:none;position:fixed;inset:48px 0 0 0;background:rgba(0,0,0,0.5);z-index:99}
+  .mobile-backdrop.visible{display:block}
+  .main{grid-column:1}
+  .zoom-ctrl{display:none}
+  .hstat-val{font-size:13px}
+  .hstat-label{font-size:10px}
+  .hstats{gap:10px}
+  .theme-toggle span:last-child{display:none}
+  .theme-toggle{padding:0 8px}
+  .header-right{gap:8px}
+  .sidebar-inner{min-width:unset}
+  .sidebar-footer{min-width:unset}
+  td,th{padding:8px}
+  .toolbar{gap:6px}
+  .search-wrap{min-width:0}
+  .filter-sel{min-width:90px;font-size:12px}
+  .btn-tool{font-size:12px;padding:0 8px}
+  .batch-bar{padding:8px}
+  .batch-sep{display:none}
+}
+
 .toast{
   position:fixed;bottom:20px;right:20px;
   background:var(--gh-canvas-subtle);
@@ -514,6 +547,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 </div>
 
 <div class="shell" id="shell">
+<div class="mobile-backdrop" id="mobile-backdrop" onclick="toggleSidebar()"></div>
 
 <!-- HEADER -->
 <header>
@@ -849,10 +883,28 @@ function changeUser() {
   document.getElementById('gate-bg').style.display = 'flex';
 }
 let sidebarOpen = true;
+function isMobile() { return window.innerWidth <= 768; }
+
 function toggleSidebar() {
-  sidebarOpen = !sidebarOpen;
-  document.getElementById('shell').classList.toggle('collapsed', !sidebarOpen);
+  if (isMobile()) {
+    // Mobile: slide-in overlay
+    sidebarOpen = !sidebarOpen;
+    document.getElementById('sidebar').classList.toggle('mobile-open', sidebarOpen);
+    document.getElementById('mobile-backdrop').classList.toggle('visible', sidebarOpen);
+  } else {
+    // Desktop: collapse grid column
+    sidebarOpen = !sidebarOpen;
+    document.getElementById('shell').classList.toggle('collapsed', !sidebarOpen);
+  }
 }
+
+// On resize: clean up mobile classes if switching back to desktop
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('mobile-backdrop').classList.remove('visible');
+  }
+});
 
 // ── SYNC STATUS ───────────────────────────────────────────────────
 let isConnected = false;
@@ -2097,6 +2149,8 @@ function toggleTheme() {
 })();
 
 orderedVal = ''; fridgeVal = '';
+// On mobile, sidebar starts closed
+if (isMobile()) sidebarOpen = false;
 updateUndoRedoBtns();
 
 // Always require password + name on every fresh page load
