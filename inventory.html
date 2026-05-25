@@ -214,6 +214,19 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .toast.show{transform:translateY(0);opacity:1}
 .toast.err{background:var(--gh-danger-subtle);border-color:rgba(248,81,73,0.4);color:var(--gh-danger-fg)}
 
+/* ── PRINT ── */
+@media print{
+  header,.toolbar,.btn-tool,.btn-primary,.btn-secondary,.btn-danger,
+  .row-btn button,.modal-bg,.toast,.zoom-ctrl{display:none!important}
+  .shell{display:block}
+  .main{padding:0;overflow:visible}
+  .tbl-outer{overflow:visible;border:none;height:auto}
+  .tbl-scaler{transform:none!important;width:100%!important;height:auto!important}
+  table{font-size:11px;width:100%}
+  th,td{padding:4px 6px;border:1px solid #ccc;color:#000!important;background:#fff!important}
+  thead tr{background:#eee!important}
+  @page{margin:1cm;size:portrait}
+}
 </style>
 </head>
 <body>
@@ -359,14 +372,13 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────
-const SB_URL   = 'https://oorhbrphdbigwgizejcc.supabase.co';
+// ── CONFIG ────────────────────────────────────────────────────────   = 'https://oorhbrphdbigwgizejcc.supabase.co';
 const SB_KEY   = 'sb_publishable_1S3L1sNMOjr-YgwGAAD2Kg_X_3S4cTl';
 const TABLE    = 'inventory';
 const HTABLE   = 'inventory_history';
 const PW_HASH  = '6a396c5a067a36c937ef23e9a6164280be68daa3df1a8d0cdee91c0492d98ef7';
 
-// ── VACCINE LIST — single source of truth (keep in sync with index.html) ──
+// VACCINE_OPTIONS — also defined in shared.js (single source of truth)
 const VACCINE_OPTIONS = [
   'AVINEW','AVINEW NEO','BIONEW BI','BIONEW BI + COR','Clone30',
   'CORIPRAVAC','E.COLI','GALLIMUNE 407','GALLIMUNE SE+ST','IB 4/91','IB PRIMER',
@@ -754,11 +766,10 @@ document.addEventListener('keydown', e => {
 sessionStorage.removeItem('emvolia_user');
 
 // Populate vaccine datalist from VACCINE_OPTIONS
-document.addEventListener('DOMContentLoaded', function() {
+(function(){
   const dl = document.getElementById('vaccine-list');
-  if (!dl) return;
-  VACCINE_OPTIONS.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
-});
+  if (dl) VACCINE_OPTIONS.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
+})();
 
 if (sessionStorage.getItem('emvolia_pw') === '1') {
   document.getElementById('pw-gate-bg').style.display = 'none';
