@@ -38,6 +38,14 @@ DATA_HEADERS = [
 HISTORY_COLUMNS = ["id", "row_id", "action", "user_name", "ts", "changes_json"]
 HISTORY_HEADERS = ["ID", "ROW ID", "ΕΝΕΡΓΕΙΑ", "ΧΡΗΣΤΗΣ", "ΧΡΟΝΟΣ", "ΑΛΛΑΓΕΣ (JSON)"]
 
+INVENTORY_COLUMNS = ["id", "emvolio", "posotita", "monada", "sxolia",
+                     "created_by", "created_at", "updated_by", "updated_at"]
+INVENTORY_HEADERS = ["ID", "ΕΜΒΟΛΙΟ", "ΠΟΣΟΤΗΤΑ", "ΜΟΝΑΔΑ", "ΣΧΟΛΙΑ",
+                     "ΔΗΜΙΟΥΡΓΗΘΗΚΕ ΑΠΟ", "ΔΗΜΙΟΥΡΓΗΘΗΚΕ", "ΕΠΕΞΕΡΓΑΣΤΗΚΕ ΑΠΟ", "ΕΠΕΞΕΡΓΑΣΤΗΚΕ"]
+
+INV_HISTORY_COLUMNS = ["id", "inventory_id", "user_name", "ts", "posotita_before", "posotita_after"]
+INV_HISTORY_HEADERS = ["ID", "INVENTORY ID", "ΧΡΗΣΤΗΣ", "ΧΡΟΝΟΣ", "ΠΟΣΟΤΗΤΑ ΠΡΙΝ", "ΠΟΣΟΤΗΤΑ ΜΕΤΑ"]
+
 # ── FETCH ─────────────────────────────────────────────────────────
 def fetch(table, order):
     url = f"{SUPABASE_URL}/rest/v1/{table}?order={order}"
@@ -81,33 +89,37 @@ def run_backup():
     print("  ✓ Connected")
 
     print("\nFetching data from Supabase…")
-    emvolia = fetch("emvolia", "hm_emv.asc")
-    history = fetch("emvolia_history", "ts.desc")
+    emvolia   = fetch("emvolia",           "hm_emv.asc")
+    history   = fetch("emvolia_history",   "ts.desc")
+    inventory = fetch("inventory",         "emvolio.asc")
+    inv_hist  = fetch("inventory_history", "ts.desc")
 
     print("\nWriting to Google Sheets…")
-    n_data    = write_tab(sh, "Δεδομένα",  DATA_COLUMNS,    DATA_HEADERS,    emvolia, len(DATA_COLUMNS))
-    n_history = write_tab(sh, "Ιστορικό",  HISTORY_COLUMNS, HISTORY_HEADERS, history, len(HISTORY_COLUMNS))
+    n_data    = write_tab(sh, "Δεδομένα",         DATA_COLUMNS,        DATA_HEADERS,        emvolia,   len(DATA_COLUMNS))
+    n_history = write_tab(sh, "Ιστορικό",         HISTORY_COLUMNS,     HISTORY_HEADERS,     history,   len(HISTORY_COLUMNS))
+    n_inv     = write_tab(sh, "Απόθεμα",          INVENTORY_COLUMNS,   INVENTORY_HEADERS,   inventory, len(INVENTORY_COLUMNS))
+    n_inv_h   = write_tab(sh, "Ιστορικό Αποθέματος", INV_HISTORY_COLUMNS, INV_HISTORY_HEADERS, inv_hist,  len(INV_HISTORY_COLUMNS))
 
     # ── LOG ───────────────────────────────────────────────────────
     try:
         log_ws = sh.worksheet("Log")
     except gspread.WorksheetNotFound:
         log_ws = sh.add_worksheet(title="Log", rows=1000, cols=5)
-        log_ws.update("A1", [["Timestamp", "Εγγραφές", "Ιστορικό", "Status", "Notes"]])
+        log_ws.update("A1", [["Timestamp", "Εγγραφές", "Ιστορικό", "Απόθεμα", "Ιστ. Αποθέματος", "Status", "Notes"]])
         log_ws.format("A1:E1", {"textFormat": {"bold": True}})
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    log_ws.append_row([ts, n_data, n_history, "✓ Success", ""])
+    log_ws.append_row([ts, n_data, n_history, n_inv, n_inv_h, "✓ Success", ""])
     print(f"\n  ✓ Logged at {ts}")
-    return n_data, n_history
+    return n_data, n_history, n_inv, n_inv_h
 
 if __name__ == "__main__":
     print("═" * 50)
     print("ΕΜΒΟΛΙΑ Daily Backup")
     print("═" * 50)
     try:
-        n_data, n_history = run_backup()
-        print(f"\n✓ Backup complete — {n_data} εγγραφές, {n_history} ιστορικό")
+        n_data, n_history, n_inv, n_inv_h = run_backup()
+        print(f"\n✓ Backup complete — {n_data} εγγραφές, {n_history} ιστορικό, {n_inv} απόθεμα, {n_inv_h} ιστ.αποθέματος")
     except Exception as e:
         print(f"\n✗ Backup failed: {e}")
         # Attempt to log failure to sheet
