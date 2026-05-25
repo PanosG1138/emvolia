@@ -282,7 +282,7 @@ tfoot td{padding:7px 12px;font-size:13px;font-weight:600;color:var(--gh-fg-defau
 .tbl-scaler{transform-origin:top left;transform:scale(var(--zoom));width:calc(100% / var(--zoom))}
 table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
 thead tr{background:var(--gh-canvas-subtle);border-bottom:1px solid var(--gh-border-default)}
-th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--gh-fg-default);cursor:pointer;user-select:none;letter-spacing:0;white-space:normal;min-width:80px;vertical-align:bottom;line-height:1.3}
+th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--gh-fg-default);cursor:pointer;user-select:none;letter-spacing:0;white-space:normal;min-width:80px;vertical-align:bottom;line-height:1.3;position:sticky;top:0;background:var(--gh-canvas-subtle);z-index:2}
 th:hover{color:var(--gh-accent-fg)}
 th .arr{font-size:10px;margin-left:3px;color:var(--gh-fg-muted)}
 tbody tr{border-bottom:1px solid var(--gh-border-muted);transition:background 0.1s}
@@ -1820,7 +1820,7 @@ async function confirmBatchDelete() {
 // ── VACCINE SMART DATALIST ────────────────────────────────────────
 // Updates the suggestion list based on the last comma-separated token being typed
 const VACCINE_OPTIONS = [
-  'AVINEW','AVINEW / CLONE 30','AVINEW NEO','BIONEW BI','BIONEW BI + COR','Clone30',
+  'AVINEW','AVINEW NEO','BIONEW BI','BIONEW BI + COR','Clone30',
   'CORIPRAVAC','E.COLI','GALLIMUNE 407','GALLIMUNE SE+ST','IB 4/91','IB PRIMER',
   'LASOTA ND','Ma5','MG 6/85','NEMOVAC TRT','OLVAC B+HG','POULVAC E.COLI',
   'RESPIVAC','SALENVAC ETC','SALMOVAC','SG-9R','TARTYLL','TS-11','VAXSAFE','VECTROMUNE'
@@ -2156,6 +2156,13 @@ orderedVal = ''; fridgeVal = '';
 if (isMobile()) sidebarOpen = false;
 updateUndoRedoBtns();
 
+// Populate vaccine datalist from single source of truth
+document.addEventListener('DOMContentLoaded', function() {
+  const dl = document.getElementById('vaccine-list');
+  if (!dl) return;
+  VACCINE_OPTIONS.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
+});
+
 // Always require password + name on every fresh page load
 // Clear any saved name so the name gate always shows after password
 sessionStorage.removeItem('emvolia_user');
@@ -2172,16 +2179,6 @@ if (sessionStorage.getItem('emvolia_pw') === '1') {
 }
 </script>
 
-      <datalist id="vaccine-list">
-        <option value="AVINEW"><option value="AVINEW / CLONE 30"><option value="AVINEW NEO">
-        <option value="BIONEW BI"><option value="BIONEW BI + COR"><option value="Clone30">
-        <option value="CORIPRAVAC"><option value="E.COLI"><option value="GALLIMUNE 407">
-        <option value="GALLIMUNE SE+ST"><option value="IB 4/91"><option value="IB PRIMER">
-        <option value="LASOTA ND"><option value="Ma5"><option value="MG 6/85">
-        <option value="NEMOVAC TRT"><option value="OLVAC B+HG"><option value="POULVAC E.COLI">
-        <option value="RESPIVAC"><option value="SALENVAC ETC"><option value="SALMOVAC">
-        <option value="SG-9R"><option value="TARTYLL"><option value="TS-11">
-        <option value="VAXSAFE"><option value="VECTROMUNE">
-      </datalist>
+      <datalist id="vaccine-list"></datalist>
 </body>
 </html>
