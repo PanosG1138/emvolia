@@ -515,6 +515,23 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--gh-accent-fg);cur
 }
 .toast.show{transform:translateY(0);opacity:1}
 .toast.err{background:var(--gh-danger-subtle);border-color:rgba(248,81,73,0.4);color:var(--gh-danger-fg)}
+
+/* ── PRINT ── */
+@media print{
+  header,.sidebar,.sidebar-footer,.toolbar,.batch-bar,
+  .btn-tool,.btn-primary,.btn-secondary,.btn-danger,
+  .row-btn,.modal-bg,.toast,#btn-changelog,
+  tfoot{display:none!important}
+  .shell{display:block}
+  .main{padding:0;overflow:visible}
+  .tbl-outer{overflow:visible;border:none;height:auto}
+  .tbl-scaler{transform:none!important;width:100%!important;height:auto!important}
+  table{font-size:11px;width:100%}
+  th,td{padding:4px 6px;border:1px solid #ccc;color:#000!important;background:#fff!important}
+  thead tr{background:#eee!important}
+  tbody tr.row-arrived{background:#e6f4ea!important}
+  @page{margin:1cm;size:landscape}
+}
 </style>
 </head>
 <body>
@@ -1822,6 +1839,7 @@ async function confirmBatchDelete() {
 
 // ── VACCINE SMART DATALIST ────────────────────────────────────────
 // Updates the suggestion list based on the last comma-separated token being typed
+// VACCINE_OPTIONS — also defined in shared.js (single source of truth)
 const VACCINE_OPTIONS = [
   'AVINEW','AVINEW NEO','BIONEW BI','BIONEW BI + COR','Clone30',
   'CORIPRAVAC','E.COLI','GALLIMUNE 407','GALLIMUNE SE+ST','IB 4/91','IB PRIMER',
