@@ -764,15 +764,21 @@ document.addEventListener('keydown', e => {
   } catch(e) {}
 })();
 
-sessionStorage.removeItem('emvolia_user');
-
 // Populate vaccine datalist from VACCINE_OPTIONS
 (function(){
   const dl = document.getElementById('vaccine-list');
   if (dl) VACCINE_OPTIONS.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
 })();
 
-if (sessionStorage.getItem('emvolia_pw') === '1') {
+// ── SESSION RESTORE ───────────────────────────────────────────────
+const _savedUser = sessionStorage.getItem('emvolia_user');
+if (sessionStorage.getItem('emvolia_pw') === '1' && _savedUser) {
+  currentUser = _savedUser;
+  document.getElementById('user-name').textContent = _savedUser;
+  document.getElementById('pw-gate-bg').style.display = 'none';
+  document.getElementById('gate-bg').style.display = 'none';
+  loadData();
+} else if (sessionStorage.getItem('emvolia_pw') === '1') {
   document.getElementById('pw-gate-bg').style.display = 'none';
   document.getElementById('gate-bg').style.display = 'flex';
   setTimeout(() => document.querySelector('.name-opt-btn').focus(), 100);
