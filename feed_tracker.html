@@ -58,6 +58,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gh-canvas-default
 .theme-toggle{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-muted);font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:background 0.15s,border-color 0.15s,color 0.15s;user-select:none;}
 .theme-toggle:hover{background:var(--gh-hover-bg);color:var(--gh-fg-default);border-color:var(--gh-fg-subtle)}
 
+/* OFFLINE OVERLAY */
+.offline-overlay{display:none;position:fixed;inset:0;background:rgba(1,4,9,0.85);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(3px);}
+.offline-overlay.active{display:flex;}
+.offline-msg{font-size:15px;font-weight:600;color:var(--gh-danger-fg);text-align:center;line-height:1.6;}
+.offline-msg span{display:block;font-size:12px;font-weight:400;color:var(--gh-fg-muted);margin-top:6px;}
+.offline-retry{display:flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-default);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;}
+.offline-retry:hover{background:var(--gh-hover-bg);}
+
 /* MAIN */
 .main{padding:16px;transform-origin:top left;}
 
@@ -79,10 +87,20 @@ tbody td.phase-col{text-align:center}
 .cell-input{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--gh-fg-default);font-family:'Inter',system-ui,sans-serif;font-size:13px;padding:3px 6px;width:100%;transition:border-color 0.15s,background 0.15s;outline:none;}
 .cell-input:hover{border-color:var(--gh-border-default);background:var(--gh-canvas-default)}
 .cell-input:focus{border-color:var(--gh-accent-emphasis);background:var(--gh-canvas-default);box-shadow:0 0 0 3px rgba(31,111,235,0.3)}
+.cell-input:disabled{opacity:0.45;cursor:not-allowed;}
 select.cell-input{cursor:pointer;padding-right:4px}
 select.cell-input option{background:var(--gh-canvas-subtle);color:var(--gh-fg-default)}
+select.cell-input option:disabled{color:var(--gh-fg-subtle);}
 input[type="date"].cell-input{color-scheme:dark;min-width:120px}
 [data-theme="light"] input[type="date"].cell-input{color-scheme:light}
+
+/* DATE TEXT INPUT */
+.date-text-input{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--gh-fg-default);font-family:'Inter',system-ui,sans-serif;font-size:13px;padding:3px 6px;width:115px;transition:border-color 0.15s,background 0.15s;outline:none;}
+.date-text-input:hover{border-color:var(--gh-border-default);background:var(--gh-canvas-default)}
+.date-text-input:focus{border-color:var(--gh-accent-emphasis);background:var(--gh-canvas-default);box-shadow:0 0 0 3px rgba(31,111,235,0.3)}
+.date-text-input:disabled{opacity:0.45;cursor:not-allowed;}
+.date-text-input::placeholder{color:var(--gh-fg-subtle);}
+.date-text-input.invalid{border-color:var(--gh-danger-fg) !important;box-shadow:0 0 0 3px var(--gh-danger-subtle) !important;}
 
 /* PHASE CELLS */
 .phase-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
@@ -106,6 +124,15 @@ input[type="date"].cell-input{color-scheme:dark;min-width:120px}
 </style>
 </head>
 <body>
+
+<!-- OFFLINE OVERLAY — shown when Supabase is unreachable -->
+<div class="offline-overlay" id="offline-overlay">
+  <div class="offline-msg">
+    ⚠ No connection to database
+    <span>Editing is disabled until the connection is restored.</span>
+  </div>
+  <button class="offline-retry" onclick="retryConnection()">↻ Retry</button>
+</div>
 
 <div class="header">
   <div class="header-left">
@@ -157,9 +184,9 @@ const SB_KEY = 'sb_publishable_1S3L1sNMOjr-YgwGAAD2Kg_X_3S4cTl';
 
 // ── FEED SCHEDULES ───────────────────────────────────────────────
 const BREEDS = {
-  'NOVOGEN': { phases: ['0-5 Wks','6-10 Wks','11-15 Wks','16-2%'],       days: [0,35,70,105] },
+  'NOVOGEN': { phases: ['0-5 Wks','6-10 Wks','11-15 Wks','16-2%'],            days: [0,35,70,105] },
   'HY-LINE': { phases: ['0-3 Wks','4-6 Wks','7-12 Wks','13-15 Wks','PRELAY'], days: [0,22,42,84,105] },
-  'ISA':     { phases: ['0-5 Wks','6-10 Wks','11-16 Wks','17-2%'],       days: [0,35,70,119] }
+  'ISA':     { phases: ['0-5 Wks','6-10 Wks','11-16 Wks','17-2%'],            days: [0,35,70,119] }
 };
 
 const HOUSES     = ['Θ1','Θ2','Θ3','Θ4','Θ5','Θ6'];
@@ -167,19 +194,34 @@ const NUM_ROWS   = 6;
 const MAX_PHASES = Math.max(...Object.values(BREEDS).map(b => b.phases.length));
 
 // ── STATE ────────────────────────────────────────────────────────
-// Each row: { id (supabase pk or null), house, breed, hatch }
-let rows = Array.from({length: NUM_ROWS}, () => ({id: null, house:'', breed:'', hatch:''}));
+let rows       = Array.from({length: NUM_ROWS}, () => ({id: null, house:'', breed:'', hatch:''}));
 let saveTimers = {};
+let isOnline   = false;   // gate — no edits until Supabase confirmed reachable
+
+// ── ONLINE GATE ──────────────────────────────────────────────────
+function setOnline(online) {
+  isOnline = online;
+  document.getElementById('offline-overlay').classList.toggle('active', !online);
+  // Enable / disable all inputs
+  document.querySelectorAll('.cell-input, .date-text-input').forEach(el => {
+    el.disabled = !online;
+  });
+}
+
+async function retryConnection() {
+  setSyncState('loading', 'Connecting…');
+  await loadFromSupabase();
+}
 
 // ── SUPABASE HELPERS ─────────────────────────────────────────────
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
-      'apikey': SB_KEY,
+      'apikey':        SB_KEY,
       'Authorization': `Bearer ${SB_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': options.prefer || '',
+      'Content-Type':  'application/json',
+      'Prefer':        options.prefer || '',
       ...(options.headers || {})
     }
   });
@@ -196,63 +238,55 @@ async function loadFromSupabase() {
   setSyncState('loading', 'Connecting…');
   try {
     const data = await sbFetch('feed_hatches?select=*&order=row_index.asc');
-    // Reset rows
     rows = Array.from({length: NUM_ROWS}, () => ({id: null, house:'', breed:'', hatch:''}));
-    for (const record of data) {
-      const idx = record.row_index;
+    for (const rec of data) {
+      const idx = rec.row_index;
       if (idx >= 0 && idx < NUM_ROWS) {
         rows[idx] = {
-          id:    record.id,
-          house: record.house  || '',
-          breed: record.breed  || '',
-          hatch: record.hatch  || ''
+          id:    rec.id,
+          house: rec.house || '',
+          breed: rec.breed || '',
+          hatch: rec.hatch || ''
         };
       }
     }
+    setOnline(true);
     setSyncState('ok', 'Synced');
+    buildRows();
   } catch(e) {
     console.error('Load error:', e);
-    setSyncState('err', 'Offline');
-    // Fall back to localStorage
-    try {
-      const s = localStorage.getItem('feed_tracker_rows');
-      if (s) {
-        const parsed = JSON.parse(s);
-        parsed.forEach((r, i) => { if (i < NUM_ROWS) rows[i] = {...rows[i], ...r}; });
-      }
-    } catch(_) {}
+    setOnline(false);
+    setSyncState('err', 'No connection');
+    buildRows();   // render read-only state with whatever is in rows
   }
-  buildRows();
 }
 
-// ── SAVE ROW TO SUPABASE (debounced 600ms) ───────────────────────
+// ── SAVE ROW (debounced 600ms) ───────────────────────────────────
 function saveRow(idx) {
-  // Always save to localStorage immediately as backup
+  if (!isOnline) return;
   localStorage.setItem('feed_tracker_rows', JSON.stringify(rows));
-
   clearTimeout(saveTimers[idx]);
   saveTimers[idx] = setTimeout(() => persistRow(idx), 600);
 }
 
 async function persistRow(idx) {
+  if (!isOnline) return;
   const r = rows[idx];
   setSyncState('saving', 'Saving…');
   try {
     const payload = {
       row_index: idx,
-      house:  r.house  || null,
-      breed:  r.breed  || null,
-      hatch:  r.hatch  || null
+      house: r.house || null,
+      breed: r.breed || null,
+      hatch: r.hatch || null
     };
     if (r.id) {
-      // Update existing record
       await sbFetch(`feed_hatches?id=eq.${r.id}`, {
         method: 'PATCH',
         prefer: 'return=representation',
         body: JSON.stringify(payload)
       });
     } else {
-      // Insert new record
       const result = await sbFetch('feed_hatches', {
         method: 'POST',
         prefer: 'return=representation',
@@ -264,22 +298,55 @@ async function persistRow(idx) {
     setTimeout(() => setSyncState('ok', 'Synced'), 1500);
   } catch(e) {
     console.error('Save error:', e);
-    setSyncState('err', 'Save failed');
+    setOnline(false);
+    setSyncState('err', 'No connection');
   }
 }
 
 // ── SYNC BADGE ───────────────────────────────────────────────────
 function setSyncState(state, text) {
   const badge = document.getElementById('sync-badge');
-  const label = document.getElementById('sync-text');
   badge.className = 'sync-badge ' + state;
-  label.textContent = text;
+  document.getElementById('sync-text').textContent = text;
 }
 
 // ── DATE HELPERS ─────────────────────────────────────────────────
-function addDays(dateStr, days) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
+// Parse flexible date input: dd/mm/yy, dd/mm/yyyy, dd-mm-yy, dd-mm-yyyy
+// Returns ISO string "YYYY-MM-DD" or null if invalid.
+function parseFlexDate(raw) {
+  if (!raw) return null;
+  const s = raw.trim().replace(/-/g, '/');
+  const parts = s.split('/');
+  if (parts.length !== 3) return null;
+
+  const dd  = parseInt(parts[0], 10);
+  const mm  = parseInt(parts[1], 10);
+  let   yy  = parseInt(parts[2], 10);
+
+  if (isNaN(dd) || isNaN(mm) || isNaN(yy)) return null;
+
+  // Expand 2-digit year: 00-99 → 2000-2099
+  if (yy >= 0 && yy <= 99) yy += 2000;
+
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+
+  // Zero-pad and build ISO
+  const iso = `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  // Validate via Date object
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return iso;
+}
+
+function isoToDisplay(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function addDays(iso, days) {
+  if (!iso) return null;
+  const d = new Date(iso);
   d.setDate(d.getDate() + days);
   return d;
 }
@@ -294,10 +361,31 @@ function chipClass(d) {
   const today = new Date(); today.setHours(0,0,0,0);
   const t = new Date(d); t.setHours(0,0,0,0);
   const diff = Math.round((t - today) / 86400000);
-  if (diff < 0)  return 'past';
+  if (diff < 0)   return 'past';
   if (diff === 0) return 'today';
   if (diff <= 7)  return 'soon';
   return '';
+}
+
+// ── HOUSE EXCLUSIVITY ────────────────────────────────────────────
+// Returns set of house values currently used (excluding the given rowIdx)
+function usedHouses(excludeIdx) {
+  const used = new Set();
+  rows.forEach((r, i) => { if (i !== excludeIdx && r.house) used.add(r.house); });
+  return used;
+}
+
+// Refresh all house dropdowns to disable already-selected houses in other rows
+function refreshHouseDropdowns() {
+  for (let i = 0; i < NUM_ROWS; i++) {
+    const sel = document.getElementById(`house-${i}`);
+    if (!sel) continue;
+    const used = usedHouses(i);
+    Array.from(sel.options).forEach(opt => {
+      if (!opt.value) return;   // skip the blank "—" option
+      opt.disabled = used.has(opt.value);
+    });
+  }
 }
 
 // ── BUILD HEADER ─────────────────────────────────────────────────
@@ -315,22 +403,46 @@ function buildRows() {
   let html = '';
   for (let i = 0; i < NUM_ROWS; i++) {
     const r = rows[i];
+    const displayHatch = isoToDisplay(r.hatch);
+
     html += `<tr id="row-${i}">`;
-    html += `<td><input type="date" class="cell-input" id="hatch-${i}" value="${r.hatch||''}" onchange="onHatchChange(${i},this.value)" title="Hatch Date"></td>`;
-    html += `<td><select class="cell-input" id="house-${i}" onchange="onHouseChange(${i},this.value)">
+
+    // Hatch date — text input with flex parsing
+    html += `<td>
+      <input type="text"
+        class="date-text-input"
+        id="hatch-${i}"
+        value="${displayHatch}"
+        placeholder="dd/mm/yy"
+        maxlength="10"
+        autocomplete="off"
+        ${!isOnline ? 'disabled' : ''}
+        onblur="onHatchBlur(${i}, this)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    </td>`;
+
+    // House dropdown
+    html += `<td><select class="cell-input" id="house-${i}" onchange="onHouseChange(${i},this.value)" ${!isOnline ? 'disabled' : ''}>
       <option value="">—</option>
-      ${HOUSES.map(h=>`<option value="${h}"${r.house===h?' selected':''}>  ${h}</option>`).join('')}
+      ${HOUSES.map(h => `<option value="${h}"${r.house===h?' selected':''}>${h}</option>`).join('')}
     </select></td>`;
-    html += `<td><select class="cell-input" id="breed-${i}" onchange="onBreedChange(${i},this.value)">
+
+    // Breed dropdown
+    html += `<td><select class="cell-input" id="breed-${i}" onchange="onBreedChange(${i},this.value)" ${!isOnline ? 'disabled' : ''}>
       <option value="">—</option>
-      ${Object.keys(BREEDS).map(b=>`<option value="${b}"${r.breed===b?' selected':''}>${b}</option>`).join('')}
+      ${Object.keys(BREEDS).map(b => `<option value="${b}"${r.breed===b?' selected':''}>${b}</option>`).join('')}
     </select></td>`;
+
+    // Phase cells
     for (let p = 0; p < MAX_PHASES; p++) {
       html += `<td class="phase-col" id="phase-${i}-${p}"></td>`;
     }
     html += '</tr>';
   }
   tbody.innerHTML = html;
+
+  // Apply house exclusivity and render phase dates
+  refreshHouseDropdowns();
   for (let i = 0; i < NUM_ROWS; i++) updatePhaseDates(i);
 }
 
@@ -343,10 +455,9 @@ function updatePhaseDates(rowIdx) {
     if (!r.breed || !r.hatch) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
     const breed = BREEDS[r.breed];
     if (p < breed.phases.length) {
-      const phaseDate = addDays(r.hatch, breed.days[p]);
-      const formatted = fmtDate(phaseDate);
-      const cls = chipClass(phaseDate);
-      cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${formatted||'—'}</span></div>`;
+      const d   = addDays(r.hatch, breed.days[p]);
+      const cls = chipClass(d);
+      cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${fmtDate(d)||'—'}</span></div>`;
     } else {
       cell.innerHTML = `<span class="phase-empty">—</span>`;
     }
@@ -354,19 +465,53 @@ function updatePhaseDates(rowIdx) {
 }
 
 // ── EVENT HANDLERS ────────────────────────────────────────────────
-function onHatchChange(idx, val) { rows[idx].hatch = val; updatePhaseDates(idx); saveRow(idx); }
-function onHouseChange(idx, val) { rows[idx].house = val; saveRow(idx); }
-function onBreedChange(idx, val) { rows[idx].breed = val; updatePhaseDates(idx); saveRow(idx); }
+function onHatchBlur(idx, input) {
+  if (!isOnline) return;
+  const raw = input.value.trim();
+  if (!raw) {
+    // Cleared
+    input.classList.remove('invalid');
+    rows[idx].hatch = '';
+    updatePhaseDates(idx);
+    saveRow(idx);
+    return;
+  }
+  const iso = parseFlexDate(raw);
+  if (!iso) {
+    input.classList.add('invalid');
+    showToast('Invalid date — use dd/mm/yy or dd/mm/yyyy');
+    return;
+  }
+  input.classList.remove('invalid');
+  input.value = isoToDisplay(iso);   // normalise display to dd/mm/yyyy
+  rows[idx].hatch = iso;
+  updatePhaseDates(idx);
+  saveRow(idx);
+}
+
+function onHouseChange(idx, val) {
+  if (!isOnline) return;
+  rows[idx].house = val;
+  refreshHouseDropdowns();
+  saveRow(idx);
+}
+
+function onBreedChange(idx, val) {
+  if (!isOnline) return;
+  rows[idx].breed = val;
+  updatePhaseDates(idx);
+  saveRow(idx);
+}
 
 // ── ZOOM ──────────────────────────────────────────────────────────
 let zoom = parseFloat(localStorage.getItem('feed_zoom') || '1');
 function applyZoom() {
-  zoom = Math.max(0.5, Math.min(2, Math.round(zoom*10)/10));
+  zoom = Math.max(0.5, Math.min(2, Math.round(zoom * 10) / 10));
   const m = document.getElementById('main');
-  m.style.transform = `scale(${zoom})`;
-  m.style.width = `calc(100% / ${zoom})`;
+  m.style.transform      = `scale(${zoom})`;
+  m.style.width          = `calc(100% / ${zoom})`;
   m.style.transformOrigin = 'top left';
-  document.getElementById('zoom-label').textContent = Math.round(zoom*100)+'%';
+  document.getElementById('zoom-label').textContent = Math.round(zoom * 100) + '%';
   localStorage.setItem('feed_zoom', zoom);
 }
 function changeZoom(delta) { zoom += delta; applyZoom(); }
@@ -375,7 +520,7 @@ function changeZoom(delta) { zoom += delta; applyZoom(); }
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const isDark = theme === 'dark';
-  document.getElementById('theme-icon').textContent = isDark ? '☀' : '☾';
+  document.getElementById('theme-icon').textContent  = isDark ? '☀' : '☾';
   document.getElementById('theme-label').textContent = isDark ? 'Light' : 'Dark';
   localStorage.setItem('feed_theme', theme);
 }
@@ -390,7 +535,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
