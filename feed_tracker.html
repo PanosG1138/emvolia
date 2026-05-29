@@ -45,6 +45,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gh-canvas-default
 .sync-badge.ok{color:var(--gh-success-fg);border-color:rgba(63,185,80,0.3);}
 .sync-badge.err .sync-dot{background:var(--gh-danger-fg);}
 .sync-badge.err{color:var(--gh-danger-fg);border-color:rgba(248,81,73,0.3);}
+.sync-badge.loading .sync-dot{background:var(--gh-accent-fg);animation:pulse 1s infinite;}
+.sync-badge.loading{color:var(--gh-accent-fg);border-color:rgba(56,139,253,0.3);}
 .sync-badge.saving .sync-dot{background:var(--gh-attention-fg);animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 
@@ -63,7 +65,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--gh-canvas-default
 .offline-overlay.active{display:flex;}
 .offline-msg{font-size:15px;font-weight:600;color:var(--gh-danger-fg);text-align:center;line-height:1.6;}
 .offline-msg span{display:block;font-size:12px;font-weight:400;color:var(--gh-fg-muted);margin-top:6px;}
-.offline-retry{display:flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-default);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;}
+.offline-retry{display:flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-default);font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;}
 .offline-retry:hover{background:var(--gh-hover-bg);}
 
 /* MAIN */
@@ -91,8 +93,7 @@ tbody td.phase-col{text-align:center}
 select.cell-input{cursor:pointer;padding-right:4px}
 select.cell-input option{background:var(--gh-canvas-subtle);color:var(--gh-fg-default)}
 select.cell-input option:disabled{color:var(--gh-fg-subtle);}
-input[type="date"].cell-input{color-scheme:dark;min-width:120px}
-[data-theme="light"] input[type="date"].cell-input{color-scheme:light}
+
 
 /* DATE TEXT INPUT */
 .date-text-input{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--gh-fg-default);font-family:'Inter',system-ui,sans-serif;font-size:13px;padding:3px 6px;width:115px;transition:border-color 0.15s,background 0.15s;outline:none;}
@@ -356,16 +357,7 @@ function fmtDate(d) {
   return d.toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'numeric'});
 }
 
-function chipClass(d) {
-  if (!d) return '';
-  const today = new Date(); today.setHours(0,0,0,0);
-  const t = new Date(d); t.setHours(0,0,0,0);
-  const diff = Math.round((t - today) / 86400000);
-  if (diff < 0)   return 'past';
-  if (diff === 0) return 'today';
-  if (diff <= 7)  return 'soon';
-  return '';
-}
+
 
 // ── HOUSE EXCLUSIVITY ────────────────────────────────────────────
 // Returns set of house values currently used (excluding the given rowIdx)
@@ -453,40 +445,50 @@ function buildRows() {
 // Blue  = future phases
 function updatePhaseDates(rowIdx) {
   const r = rows[rowIdx];
-
-  // Pre-compute today once
   const today = new Date(); today.setHours(0,0,0,0);
+
+  // Bail early if row is incomplete — clear all phase cells
+  if (!r.breed || !r.hatch) {
+    for (let p = 0; p < MAX_PHASES; p++) {
+      const cell = document.getElementById(`phase-${rowIdx}-${p}`);
+      if (cell) cell.innerHTML = `<span class="phase-empty">—</span>`;
+    }
+    return;
+  }
+
+  const breed = BREEDS[r.breed];
+
+  // Build all phase Date objects once per row (not once per phase)
+  const phaseDates = breed.days.map(d => {
+    const dt = addDays(r.hatch, d);
+    dt.setHours(0,0,0,0);
+    return dt;
+  });
+
+  // Active phase = last index whose start date is today or in the past
+  let activeIdx = -1;
+  for (let i = 0; i < phaseDates.length; i++) {
+    if (phaseDates[i] <= today) activeIdx = i;
+  }
 
   for (let p = 0; p < MAX_PHASES; p++) {
     const cell = document.getElementById(`phase-${rowIdx}-${p}`);
     if (!cell) continue;
-    if (!r.breed || !r.hatch) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
 
-    const breed = BREEDS[r.breed];
-    if (p >= breed.phases.length) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
-
-    // Build Date objects for all phase start dates (do once per row, cheap inside loop)
-    const phaseDates = breed.days.map(d => {
-      const dt = addDays(r.hatch, d);
-      dt.setHours(0,0,0,0);
-      return dt;
-    });
-
-    // Active phase = last index whose start date is today or in the past
-    let activeIdx = -1;
-    for (let i = 0; i < phaseDates.length; i++) {
-      if (phaseDates[i] <= today) activeIdx = i;
+    if (p >= breed.phases.length) {
+      cell.innerHTML = `<span class="phase-empty">—</span>`;
+      continue;
     }
 
     const phaseDate = phaseDates[p];
     let cls = '';
     if (p === activeIdx) {
-      cls = 'today';                              // green — currently on this feed
+      cls = 'today';                                        // green — currently on this feed
     } else if (p < activeIdx) {
-      cls = 'past';                               // grey  — already moved past this
+      cls = 'past';                                         // grey  — already replaced
     } else {
       const diff = Math.round((phaseDate - today) / 86400000);
-      cls = diff <= 7 ? 'soon' : '';              // orange ≤7 days away, blue otherwise
+      cls = diff <= 7 ? 'soon' : '';                        // orange ≤7 days, blue otherwise
     }
 
     cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${fmtDate(phaseDate)||'—'}</span></div>`;
