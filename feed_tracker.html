@@ -447,20 +447,49 @@ function buildRows() {
 }
 
 // ── UPDATE PHASE DATES ────────────────────────────────────────────
+// Green = current active phase (started but next hasn't begun yet)
+// Grey  = past phases already replaced
+// Orange = next phase due within 7 days
+// Blue  = future phases
 function updatePhaseDates(rowIdx) {
   const r = rows[rowIdx];
+
+  // Pre-compute today once
+  const today = new Date(); today.setHours(0,0,0,0);
+
   for (let p = 0; p < MAX_PHASES; p++) {
     const cell = document.getElementById(`phase-${rowIdx}-${p}`);
     if (!cell) continue;
     if (!r.breed || !r.hatch) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
+
     const breed = BREEDS[r.breed];
-    if (p < breed.phases.length) {
-      const d   = addDays(r.hatch, breed.days[p]);
-      const cls = chipClass(d);
-      cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${fmtDate(d)||'—'}</span></div>`;
-    } else {
-      cell.innerHTML = `<span class="phase-empty">—</span>`;
+    if (p >= breed.phases.length) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
+
+    // Build Date objects for all phase start dates (do once per row, cheap inside loop)
+    const phaseDates = breed.days.map(d => {
+      const dt = addDays(r.hatch, d);
+      dt.setHours(0,0,0,0);
+      return dt;
+    });
+
+    // Active phase = last index whose start date is today or in the past
+    let activeIdx = -1;
+    for (let i = 0; i < phaseDates.length; i++) {
+      if (phaseDates[i] <= today) activeIdx = i;
     }
+
+    const phaseDate = phaseDates[p];
+    let cls = '';
+    if (p === activeIdx) {
+      cls = 'today';                              // green — currently on this feed
+    } else if (p < activeIdx) {
+      cls = 'past';                               // grey  — already moved past this
+    } else {
+      const diff = Math.round((phaseDate - today) / 86400000);
+      cls = diff <= 7 ? 'soon' : '';              // orange ≤7 days away, blue otherwise
+    }
+
+    cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${fmtDate(phaseDate)||'—'}</span></div>`;
   }
 }
 
