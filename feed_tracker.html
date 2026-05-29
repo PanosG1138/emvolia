@@ -6,173 +6,77 @@
 <title>Feed Program — Poultry Nutrition Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ── GITHUB DARK/LIGHT COLOUR SYSTEM ── */
 :root,[data-theme="dark"]{
-  --gh-canvas-default:#0d1117;
-  --gh-canvas-subtle:#161b22;
-  --gh-canvas-inset:#010409;
-  --gh-border-default:#30363d;
-  --gh-border-muted:#21262d;
-  --gh-fg-default:#e6edf3;
-  --gh-fg-muted:#8b949e;
-  --gh-fg-subtle:#6e7681;
-  --gh-accent-fg:#58a6ff;
-  --gh-accent-emphasis:#1f6feb;
-  --gh-accent-subtle:rgba(56,139,253,0.1);
-  --gh-success-fg:#3fb950;
-  --gh-success-subtle:rgba(46,160,67,0.1);
-  --gh-attention-fg:#d29922;
-  --gh-attention-subtle:rgba(187,128,9,0.1);
-  --gh-danger-fg:#f85149;
-  --gh-danger-subtle:rgba(248,81,73,0.1);
-  --gh-hover-bg:#21262d;
-  --r:6px;--rs:6px;
+  --gh-canvas-default:#0d1117;--gh-canvas-subtle:#161b22;--gh-canvas-inset:#010409;
+  --gh-border-default:#30363d;--gh-border-muted:#21262d;
+  --gh-fg-default:#e6edf3;--gh-fg-muted:#8b949e;--gh-fg-subtle:#6e7681;
+  --gh-accent-fg:#58a6ff;--gh-accent-emphasis:#1f6feb;--gh-accent-subtle:rgba(56,139,253,0.1);
+  --gh-success-fg:#3fb950;--gh-success-subtle:rgba(46,160,67,0.1);
+  --gh-attention-fg:#d29922;--gh-attention-subtle:rgba(187,128,9,0.1);
+  --gh-danger-fg:#f85149;--gh-danger-subtle:rgba(248,81,73,0.1);
+  --gh-hover-bg:#21262d;--r:6px;--rs:6px;
 }
 [data-theme="light"]{
-  --gh-canvas-default:#ffffff;
-  --gh-canvas-subtle:#f6f8fa;
-  --gh-canvas-inset:#f0f2f5;
-  --gh-border-default:#d0d7de;
-  --gh-border-muted:#d8dee4;
-  --gh-fg-default:#1f2328;
-  --gh-fg-muted:#636c76;
-  --gh-fg-subtle:#6e7781;
-  --gh-accent-fg:#0969da;
-  --gh-accent-emphasis:#0969da;
-  --gh-accent-subtle:rgba(9,105,218,0.08);
-  --gh-success-fg:#1a7f37;
-  --gh-success-subtle:rgba(26,127,55,0.08);
-  --gh-attention-fg:#9a6700;
-  --gh-attention-subtle:rgba(154,103,0,0.08);
-  --gh-danger-fg:#d1242f;
-  --gh-danger-subtle:rgba(209,36,47,0.08);
-  --gh-hover-bg:#eaeef2;
-  --r:6px;--rs:6px;
+  --gh-canvas-default:#ffffff;--gh-canvas-subtle:#f6f8fa;--gh-canvas-inset:#f0f2f5;
+  --gh-border-default:#d0d7de;--gh-border-muted:#d8dee4;
+  --gh-fg-default:#1f2328;--gh-fg-muted:#636c76;--gh-fg-subtle:#6e7781;
+  --gh-accent-fg:#0969da;--gh-accent-emphasis:#0969da;--gh-accent-subtle:rgba(9,105,218,0.08);
+  --gh-success-fg:#1a7f37;--gh-success-subtle:rgba(26,127,55,0.08);
+  --gh-attention-fg:#9a6700;--gh-attention-subtle:rgba(154,103,0,0.08);
+  --gh-danger-fg:#d1242f;--gh-danger-subtle:rgba(209,36,47,0.08);
+  --gh-hover-bg:#eaeef2;--r:6px;--rs:6px;
 }
-
 *{box-sizing:border-box;margin:0;padding:0}
 html{font-size:14px}
-body{
-  font-family:'Inter',system-ui,sans-serif;
-  background:var(--gh-canvas-default);
-  color:var(--gh-fg-default);
-  min-height:100vh;
-}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--gh-canvas-default);color:var(--gh-fg-default);min-height:100vh;}
 
-/* ── HEADER ── */
-.header{
-  background:var(--gh-canvas-subtle);
-  border-bottom:1px solid var(--gh-border-default);
-  padding:10px 16px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  position:sticky;
-  top:0;
-  z-index:50;
-}
+/* HEADER */
+.header{background:var(--gh-canvas-subtle);border-bottom:1px solid var(--gh-border-default);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:50;}
 .header-left{display:flex;align-items:center;gap:10px}
 .header-icon{font-size:18px}
 .header-title{font-size:15px;font-weight:600;color:var(--gh-fg-default)}
 .header-sub{font-size:12px;color:var(--gh-fg-muted);margin-top:1px}
 .header-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
-/* ── ZOOM ── */
+/* SYNC BADGE */
+.sync-badge{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--gh-border-default);border-radius:var(--rs);font-size:12px;font-weight:500;color:var(--gh-fg-muted);background:var(--gh-canvas-subtle);white-space:nowrap;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--gh-fg-subtle);flex-shrink:0;}
+.sync-badge.ok .sync-dot{background:var(--gh-success-fg);}
+.sync-badge.ok{color:var(--gh-success-fg);border-color:rgba(63,185,80,0.3);}
+.sync-badge.err .sync-dot{background:var(--gh-danger-fg);}
+.sync-badge.err{color:var(--gh-danger-fg);border-color:rgba(248,81,73,0.3);}
+.sync-badge.saving .sync-dot{background:var(--gh-attention-fg);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* ZOOM */
 .zoom-ctrl{display:flex;align-items:center;gap:4px}
-.zoom-btn{
-  display:flex;align-items:center;justify-content:center;
-  width:26px;height:26px;
-  border:1px solid var(--gh-border-default);
-  border-radius:var(--rs);
-  background:var(--gh-canvas-subtle);
-  color:var(--gh-fg-muted);
-  font-size:14px;font-weight:600;
-  cursor:pointer;
-  transition:background 0.15s,color 0.15s;
-  user-select:none;
-}
+.zoom-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-muted);font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s,color 0.15s;user-select:none;}
 .zoom-btn:hover{background:var(--gh-hover-bg);color:var(--gh-fg-default)}
 .zoom-label{font-size:12px;color:var(--gh-fg-muted);min-width:36px;text-align:center}
 
-/* ── THEME TOGGLE ── */
-.theme-toggle{
-  display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;
-  border:1px solid var(--gh-border-default);border-radius:var(--rs);
-  background:var(--gh-canvas-subtle);color:var(--gh-fg-muted);
-  font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:500;
-  cursor:pointer;transition:background 0.15s,border-color 0.15s,color 0.15s;
-  user-select:none;
-}
+/* THEME */
+.theme-toggle{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--gh-border-default);border-radius:var(--rs);background:var(--gh-canvas-subtle);color:var(--gh-fg-muted);font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:background 0.15s,border-color 0.15s,color 0.15s;user-select:none;}
 .theme-toggle:hover{background:var(--gh-hover-bg);color:var(--gh-fg-default);border-color:var(--gh-fg-subtle)}
 
-/* ── MAIN CONTENT ── */
-.main{
-  padding:16px;
-  transform-origin:top left;
-}
+/* MAIN */
+.main{padding:16px;transform-origin:top left;}
 
-/* ── TABLE CONTAINER ── */
-.table-wrap{
-  overflow-x:auto;
-  border:1px solid var(--gh-border-default);
-  border-radius:var(--r);
-  background:var(--gh-canvas-subtle);
-}
-
-/* ── TABLE ── */
-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-  white-space:nowrap;
-}
-thead tr{
-  background:var(--gh-canvas-inset);
-  border-bottom:1px solid var(--gh-border-default);
-}
-thead th{
-  padding:8px 10px;
-  font-size:11px;
-  font-weight:600;
-  color:var(--gh-fg-muted);
-  text-align:left;
-  text-transform:uppercase;
-  letter-spacing:0.04em;
-  border-right:1px solid var(--gh-border-muted);
-}
+/* TABLE */
+.table-wrap{overflow-x:auto;border:1px solid var(--gh-border-default);border-radius:var(--r);background:var(--gh-canvas-subtle);}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap;}
+thead tr{background:var(--gh-canvas-inset);border-bottom:1px solid var(--gh-border-default);}
+thead th{padding:8px 10px;font-size:11px;font-weight:600;color:var(--gh-fg-muted);text-align:left;text-transform:uppercase;letter-spacing:0.04em;border-right:1px solid var(--gh-border-muted);}
 thead th:last-child{border-right:none}
 thead th.phase-col{text-align:center;color:var(--gh-accent-fg)}
-
-tbody tr{
-  border-bottom:1px solid var(--gh-border-muted);
-  transition:background 0.1s;
-}
+tbody tr{border-bottom:1px solid var(--gh-border-muted);transition:background 0.1s;}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:var(--gh-hover-bg)}
-
-tbody td{
-  padding:9px 10px;
-  color:var(--gh-fg-default);
-  border-right:1px solid var(--gh-border-muted);
-  vertical-align:middle;
-}
+tbody td{padding:9px 10px;color:var(--gh-fg-default);border-right:1px solid var(--gh-border-muted);vertical-align:middle;}
 tbody td:last-child{border-right:none}
 tbody td.phase-col{text-align:center}
 
-/* ── INPUT CELLS ── */
-.cell-input{
-  background:transparent;
-  border:1px solid transparent;
-  border-radius:4px;
-  color:var(--gh-fg-default);
-  font-family:'Inter',system-ui,sans-serif;
-  font-size:13px;
-  padding:3px 6px;
-  width:100%;
-  transition:border-color 0.15s,background 0.15s;
-  outline:none;
-}
+/* INPUTS */
+.cell-input{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--gh-fg-default);font-family:'Inter',system-ui,sans-serif;font-size:13px;padding:3px 6px;width:100%;transition:border-color 0.15s,background 0.15s;outline:none;}
 .cell-input:hover{border-color:var(--gh-border-default);background:var(--gh-canvas-default)}
 .cell-input:focus{border-color:var(--gh-accent-emphasis);background:var(--gh-canvas-default);box-shadow:0 0 0 3px rgba(31,111,235,0.3)}
 select.cell-input{cursor:pointer;padding-right:4px}
@@ -180,84 +84,29 @@ select.cell-input option{background:var(--gh-canvas-subtle);color:var(--gh-fg-de
 input[type="date"].cell-input{color-scheme:dark;min-width:120px}
 [data-theme="light"] input[type="date"].cell-input{color-scheme:light}
 
-/* ── PHASE CELL CONTENT ── */
-.phase-cell{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:4px;
-}
-.phase-label{
-  font-size:11px;
-  font-weight:600;
-  color:var(--gh-fg-muted);
-  letter-spacing:0.03em;
-  text-transform:uppercase;
-}
-.phase-empty{
-  font-size:12px;
-  color:var(--gh-border-default);
-}
+/* PHASE CELLS */
+.phase-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.phase-label{font-size:11px;font-weight:600;color:var(--gh-fg-muted);letter-spacing:0.03em;text-transform:uppercase;}
+.phase-empty{font-size:12px;color:var(--gh-border-default);}
 
-/* ── DATE CHIPS ── */
-.date-chip{
-  display:inline-block;
-  padding:2px 9px;
-  border-radius:12px;
-  font-size:12px;
-  font-weight:500;
-  background:var(--gh-accent-subtle);
-  color:var(--gh-accent-fg);
-  border:1px solid rgba(56,139,253,0.2);
-  font-variant-numeric:tabular-nums;
-}
-.date-chip.past{
-  background:var(--gh-canvas-inset);
-  color:var(--gh-fg-subtle);
-  border-color:var(--gh-border-muted);
-}
-.date-chip.today{
-  background:var(--gh-success-subtle);
-  color:var(--gh-success-fg);
-  border-color:rgba(63,185,80,0.3);
-}
-.date-chip.soon{
-  background:var(--gh-attention-subtle);
-  color:var(--gh-attention-fg);
-  border-color:rgba(210,153,34,0.3);
-}
+/* DATE CHIPS */
+.date-chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;font-weight:500;background:var(--gh-accent-subtle);color:var(--gh-accent-fg);border:1px solid rgba(56,139,253,0.2);font-variant-numeric:tabular-nums;}
+.date-chip.past{background:var(--gh-canvas-inset);color:var(--gh-fg-subtle);border-color:var(--gh-border-muted);}
+.date-chip.today{background:var(--gh-success-subtle);color:var(--gh-success-fg);border-color:rgba(63,185,80,0.3);}
+.date-chip.soon{background:var(--gh-attention-subtle);color:var(--gh-attention-fg);border-color:rgba(210,153,34,0.3);}
 
-/* ── LEGEND ── */
-.legend{
-  display:flex;gap:16px;align-items:center;
-  padding:10px 16px;
-  font-size:12px;
-  color:var(--gh-fg-muted);
-  flex-wrap:wrap;
-}
+/* LEGEND */
+.legend{display:flex;gap:16px;align-items:center;padding:10px 16px;font-size:12px;color:var(--gh-fg-muted);flex-wrap:wrap;}
 .legend-item{display:flex;align-items:center;gap:6px}
 .legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
-/* ── TOAST ── */
-.toast{
-  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-  background:var(--gh-canvas-subtle);
-  border:1px solid var(--gh-border-default);
-  border-radius:var(--r);
-  padding:8px 16px;
-  font-size:13px;
-  color:var(--gh-fg-default);
-  z-index:999;
-  opacity:0;
-  transition:opacity 0.2s;
-  pointer-events:none;
-}
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--gh-canvas-subtle);border:1px solid var(--gh-border-default);border-radius:var(--r);padding:8px 16px;font-size:13px;color:var(--gh-fg-default);z-index:999;opacity:0;transition:opacity 0.2s;pointer-events:none;}
 .toast.show{opacity:1}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="header">
   <div class="header-left">
     <span class="header-icon">🐔</span>
@@ -267,6 +116,10 @@ input[type="date"].cell-input{color-scheme:dark;min-width:120px}
     </div>
   </div>
   <div class="header-right">
+    <div class="sync-badge" id="sync-badge">
+      <div class="sync-dot"></div>
+      <span id="sync-text">Connecting…</span>
+    </div>
     <div class="zoom-ctrl">
       <button class="zoom-btn" onclick="changeZoom(-0.1)" title="Zoom out">−</button>
       <span class="zoom-label" id="zoom-label">100%</span>
@@ -279,17 +132,13 @@ input[type="date"].cell-input{color-scheme:dark;min-width:120px}
   </div>
 </div>
 
-<!-- MAIN -->
 <div class="main" id="main">
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr id="header-row"></tr>
-      </thead>
+      <thead><tr id="header-row"></tr></thead>
       <tbody id="table-body"></tbody>
     </table>
   </div>
-
   <div class="legend">
     <span style="font-weight:500">Legend:</span>
     <div class="legend-item"><span class="legend-dot" style="background:var(--gh-fg-subtle)"></span> Past</div>
@@ -302,37 +151,129 @@ input[type="date"].cell-input{color-scheme:dark;min-width:120px}
 <div class="toast" id="toast"></div>
 
 <script>
+// ── CONFIG ───────────────────────────────────────────────────────
+const SB_URL = 'https://oorhbrphdbigwgizejcc.supabase.co';
+const SB_KEY = 'sb_publishable_1S3L1sNMOjr-YgwGAAD2Kg_X_3S4cTl';
+
 // ── FEED SCHEDULES ───────────────────────────────────────────────
 const BREEDS = {
-  'NOVOGEN': {
-    phases: ['0-5 Wks', '6-10 Wks', '11-15 Wks', '16-2%'],
-    days:   [0, 35, 70, 105]
-  },
-  'HY-LINE': {
-    phases: ['0-3', '4-6', '7-12', '13-15', 'PRELAY'],
-    days:   [0, 22, 42, 84, 105]
-  },
-  'ISA': {
-    phases: ['0-5', '6-10', '11-16', '17-2%'],
-    days:   [0, 35, 70, 119]
-  }
+  'NOVOGEN': { phases: ['0-5 Wks','6-10 Wks','11-15 Wks','16-2%'],       days: [0,35,70,105] },
+  'HY-LINE': { phases: ['0-3 Wks','4-6 Wks','7-12 Wks','13-15 Wks','PRELAY'], days: [0,22,42,84,105] },
+  'ISA':     { phases: ['0-5 Wks','6-10 Wks','11-16 Wks','17-2%'],       days: [0,35,70,119] }
 };
 
-const HOUSES = ['Θ1','Θ2','Θ3','Θ4','Θ5','Θ6'];
-const NUM_ROWS = 6;
+const HOUSES     = ['Θ1','Θ2','Θ3','Θ4','Θ5','Θ6'];
+const NUM_ROWS   = 6;
 const MAX_PHASES = Math.max(...Object.values(BREEDS).map(b => b.phases.length));
 
-let rows = Array.from({length: NUM_ROWS}, () => ({house:'', breed:'', hatch:''}));
+// ── STATE ────────────────────────────────────────────────────────
+// Each row: { id (supabase pk or null), house, breed, hatch }
+let rows = Array.from({length: NUM_ROWS}, () => ({id: null, house:'', breed:'', hatch:''}));
+let saveTimers = {};
 
-function loadState() {
-  try {
-    const s = localStorage.getItem('feed_tracker_rows');
-    if (s) rows = JSON.parse(s);
-  } catch(e){}
+// ── SUPABASE HELPERS ─────────────────────────────────────────────
+async function sbFetch(path, options = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || '',
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
-function saveState() {
+// ── LOAD FROM SUPABASE ───────────────────────────────────────────
+async function loadFromSupabase() {
+  setSyncState('loading', 'Connecting…');
+  try {
+    const data = await sbFetch('feed_hatches?select=*&order=row_index.asc');
+    // Reset rows
+    rows = Array.from({length: NUM_ROWS}, () => ({id: null, house:'', breed:'', hatch:''}));
+    for (const record of data) {
+      const idx = record.row_index;
+      if (idx >= 0 && idx < NUM_ROWS) {
+        rows[idx] = {
+          id:    record.id,
+          house: record.house  || '',
+          breed: record.breed  || '',
+          hatch: record.hatch  || ''
+        };
+      }
+    }
+    setSyncState('ok', 'Synced');
+  } catch(e) {
+    console.error('Load error:', e);
+    setSyncState('err', 'Offline');
+    // Fall back to localStorage
+    try {
+      const s = localStorage.getItem('feed_tracker_rows');
+      if (s) {
+        const parsed = JSON.parse(s);
+        parsed.forEach((r, i) => { if (i < NUM_ROWS) rows[i] = {...rows[i], ...r}; });
+      }
+    } catch(_) {}
+  }
+  buildRows();
+}
+
+// ── SAVE ROW TO SUPABASE (debounced 600ms) ───────────────────────
+function saveRow(idx) {
+  // Always save to localStorage immediately as backup
   localStorage.setItem('feed_tracker_rows', JSON.stringify(rows));
+
+  clearTimeout(saveTimers[idx]);
+  saveTimers[idx] = setTimeout(() => persistRow(idx), 600);
+}
+
+async function persistRow(idx) {
+  const r = rows[idx];
+  setSyncState('saving', 'Saving…');
+  try {
+    const payload = {
+      row_index: idx,
+      house:  r.house  || null,
+      breed:  r.breed  || null,
+      hatch:  r.hatch  || null
+    };
+    if (r.id) {
+      // Update existing record
+      await sbFetch(`feed_hatches?id=eq.${r.id}`, {
+        method: 'PATCH',
+        prefer: 'return=representation',
+        body: JSON.stringify(payload)
+      });
+    } else {
+      // Insert new record
+      const result = await sbFetch('feed_hatches', {
+        method: 'POST',
+        prefer: 'return=representation',
+        body: JSON.stringify(payload)
+      });
+      if (result && result[0]) rows[idx].id = result[0].id;
+    }
+    setSyncState('ok', 'Saved ✓');
+    setTimeout(() => setSyncState('ok', 'Synced'), 1500);
+  } catch(e) {
+    console.error('Save error:', e);
+    setSyncState('err', 'Save failed');
+  }
+}
+
+// ── SYNC BADGE ───────────────────────────────────────────────────
+function setSyncState(state, text) {
+  const badge = document.getElementById('sync-badge');
+  const label = document.getElementById('sync-text');
+  badge.className = 'sync-badge ' + state;
+  label.textContent = text;
 }
 
 // ── DATE HELPERS ─────────────────────────────────────────────────
@@ -353,21 +294,17 @@ function chipClass(d) {
   const today = new Date(); today.setHours(0,0,0,0);
   const t = new Date(d); t.setHours(0,0,0,0);
   const diff = Math.round((t - today) / 86400000);
-  if (diff < 0) return 'past';
+  if (diff < 0)  return 'past';
   if (diff === 0) return 'today';
-  if (diff <= 7) return 'soon';
+  if (diff <= 7)  return 'soon';
   return '';
 }
 
 // ── BUILD HEADER ─────────────────────────────────────────────────
 function buildHeader() {
-  let html = `
-    <th style="min-width:130px">Hatch Date</th>
-    <th style="min-width:80px">House</th>
-    <th style="min-width:110px">Breed</th>
-  `;
+  let html = `<th style="min-width:130px">Hatch Date</th><th style="min-width:80px">House</th><th style="min-width:110px">Breed</th>`;
   for (let i = 0; i < MAX_PHASES; i++) {
-    html += `<th class="phase-col" style="min-width:130px">Phase ${i + 1}</th>`;
+    html += `<th class="phase-col" style="min-width:130px">Phase ${i+1}</th>`;
   }
   document.getElementById('header-row').innerHTML = html;
 }
@@ -379,69 +316,37 @@ function buildRows() {
   for (let i = 0; i < NUM_ROWS; i++) {
     const r = rows[i];
     html += `<tr id="row-${i}">`;
-
-    // Hatch date
-    html += `<td>
-      <input type="date" class="cell-input" id="hatch-${i}"
-        value="${r.hatch || ''}"
-        onchange="onHatchChange(${i}, this.value)"
-        title="Hatch Date">
-    </td>`;
-
-    // House
-    html += `<td>
-      <select class="cell-input" id="house-${i}" onchange="onHouseChange(${i}, this.value)">
-        <option value="">—</option>
-        ${HOUSES.map(h => `<option value="${h}" ${r.house === h ? 'selected' : ''}>${h}</option>`).join('')}
-      </select>
-    </td>`;
-
-    // Breed
-    html += `<td>
-      <select class="cell-input" id="breed-${i}" onchange="onBreedChange(${i}, this.value)">
-        <option value="">—</option>
-        ${Object.keys(BREEDS).map(b => `<option value="${b}" ${r.breed === b ? 'selected' : ''}>${b}</option>`).join('')}
-      </select>
-    </td>`;
-
-    // Phase cells (empty placeholders, filled by updatePhaseDates)
+    html += `<td><input type="date" class="cell-input" id="hatch-${i}" value="${r.hatch||''}" onchange="onHatchChange(${i},this.value)" title="Hatch Date"></td>`;
+    html += `<td><select class="cell-input" id="house-${i}" onchange="onHouseChange(${i},this.value)">
+      <option value="">—</option>
+      ${HOUSES.map(h=>`<option value="${h}"${r.house===h?' selected':''}>  ${h}</option>`).join('')}
+    </select></td>`;
+    html += `<td><select class="cell-input" id="breed-${i}" onchange="onBreedChange(${i},this.value)">
+      <option value="">—</option>
+      ${Object.keys(BREEDS).map(b=>`<option value="${b}"${r.breed===b?' selected':''}>${b}</option>`).join('')}
+    </select></td>`;
     for (let p = 0; p < MAX_PHASES; p++) {
       html += `<td class="phase-col" id="phase-${i}-${p}"></td>`;
     }
-
     html += '</tr>';
   }
   tbody.innerHTML = html;
-
-  for (let i = 0; i < NUM_ROWS; i++) {
-    updatePhaseDates(i);
-  }
+  for (let i = 0; i < NUM_ROWS; i++) updatePhaseDates(i);
 }
 
-// ── UPDATE PHASE DATES FOR A ROW ──────────────────────────────────
+// ── UPDATE PHASE DATES ────────────────────────────────────────────
 function updatePhaseDates(rowIdx) {
   const r = rows[rowIdx];
-
   for (let p = 0; p < MAX_PHASES; p++) {
     const cell = document.getElementById(`phase-${rowIdx}-${p}`);
     if (!cell) continue;
-
-    if (!r.breed || !r.hatch) {
-      cell.innerHTML = `<span class="phase-empty">—</span>`;
-      continue;
-    }
-
+    if (!r.breed || !r.hatch) { cell.innerHTML = `<span class="phase-empty">—</span>`; continue; }
     const breed = BREEDS[r.breed];
-
     if (p < breed.phases.length) {
       const phaseDate = addDays(r.hatch, breed.days[p]);
       const formatted = fmtDate(phaseDate);
       const cls = chipClass(phaseDate);
-      cell.innerHTML = `
-        <div class="phase-cell">
-          <span class="phase-label">${breed.phases[p]}</span>
-          <span class="date-chip ${cls}">${formatted || '—'}</span>
-        </div>`;
+      cell.innerHTML = `<div class="phase-cell"><span class="phase-label">${breed.phases[p]}</span><span class="date-chip ${cls}">${formatted||'—'}</span></div>`;
     } else {
       cell.innerHTML = `<span class="phase-empty">—</span>`;
     }
@@ -449,40 +354,22 @@ function updatePhaseDates(rowIdx) {
 }
 
 // ── EVENT HANDLERS ────────────────────────────────────────────────
-function onHatchChange(idx, val) {
-  rows[idx].hatch = val;
-  updatePhaseDates(idx);
-  saveState();
-}
-
-function onHouseChange(idx, val) {
-  rows[idx].house = val;
-  saveState();
-}
-
-function onBreedChange(idx, val) {
-  rows[idx].breed = val;
-  updatePhaseDates(idx);
-  saveState();
-}
+function onHatchChange(idx, val) { rows[idx].hatch = val; updatePhaseDates(idx); saveRow(idx); }
+function onHouseChange(idx, val) { rows[idx].house = val; saveRow(idx); }
+function onBreedChange(idx, val) { rows[idx].breed = val; updatePhaseDates(idx); saveRow(idx); }
 
 // ── ZOOM ──────────────────────────────────────────────────────────
 let zoom = parseFloat(localStorage.getItem('feed_zoom') || '1');
-
 function applyZoom() {
-  zoom = Math.max(0.5, Math.min(2, Math.round(zoom * 10) / 10));
-  const main = document.getElementById('main');
-  main.style.transform = `scale(${zoom})`;
-  main.style.width = `calc(100% / ${zoom})`;
-  main.style.transformOrigin = 'top left';
-  document.getElementById('zoom-label').textContent = Math.round(zoom * 100) + '%';
+  zoom = Math.max(0.5, Math.min(2, Math.round(zoom*10)/10));
+  const m = document.getElementById('main');
+  m.style.transform = `scale(${zoom})`;
+  m.style.width = `calc(100% / ${zoom})`;
+  m.style.transformOrigin = 'top left';
+  document.getElementById('zoom-label').textContent = Math.round(zoom*100)+'%';
   localStorage.setItem('feed_zoom', zoom);
 }
-
-function changeZoom(delta) {
-  zoom += delta;
-  applyZoom();
-}
+function changeZoom(delta) { zoom += delta; applyZoom(); }
 
 // ── THEME ─────────────────────────────────────────────────────────
 function applyTheme(theme) {
@@ -492,10 +379,8 @@ function applyTheme(theme) {
   document.getElementById('theme-label').textContent = isDark ? 'Light' : 'Dark';
   localStorage.setItem('feed_theme', theme);
 }
-
 function toggleTheme() {
-  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-  applyTheme(cur === 'dark' ? 'light' : 'dark');
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────
@@ -509,11 +394,10 @@ function showToast(msg) {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
-loadState();
 applyZoom();
 applyTheme(localStorage.getItem('feed_theme') || 'dark');
 buildHeader();
-buildRows();
+loadFromSupabase();
 </script>
 </body>
 </html>
