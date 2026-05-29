@@ -2,11 +2,9 @@ name: Feed Change Notifications
 
 on:
   schedule:
-    # 10:30 Athens time = 08:30 UTC (winter) / 07:30 UTC (summer)
-    # We run at BOTH times; the script itself checks the Athens date
-    - cron: '30 7 * * *'   # summer (EEST, UTC+3)
-    - cron: '30 8 * * *'   # winter (EET, UTC+2)
-  workflow_dispatch:        # allow manual trigger for testing
+    - cron: '30 7 * * *'   # summer EEST (UTC+3)
+    - cron: '30 8 * * *'   # winter EET  (UTC+2)
+  workflow_dispatch:
 
 jobs:
   notify:
@@ -22,20 +20,18 @@ jobs:
           import os, json, urllib.request, urllib.error
           from datetime import date, timedelta
 
-          SB_URL   = os.environ['SB_URL']
-          SB_KEY   = os.environ['SB_KEY']
-          NTFY_TOPIC = os.environ['NTFY_TOPIC']
+          SB_URL     = os.environ['SB_URL']
+          SB_KEY     = os.environ['SB_KEY']
+          NTFY_TOPIC = os.environ['NTFY_TOPIC'].strip()
 
-          # Feed schedules — must match feed_tracker.html exactly
           BREEDS = {
-              'NOVOGEN': {'phases': ['0-5 Wks','6-10 Wks','11-15 Wks','16-2%'],         'days': [0,35,70,105]},
-              'HY-LINE': {'phases': ['0-3 Wks','4-6 Wks','7-12 Wks','13-15 Wks','PRELAY'], 'days': [0,22,42,84,105]},
-              'ISA':     {'phases': ['0-5 Wks','6-10 Wks','11-16 Wks','17-2%'],          'days': [0,35,70,119]},
+              'NOVOGEN': {'phases': ['0-5 Wks','6-10 Wks','11-15 Wks','16-2%'],              'days': [0,35,70,105]},
+              'HY-LINE': {'phases': ['0-3 Wks','4-6 Wks','7-12 Wks','13-15 Wks','PRELAY'],  'days': [0,22,42,84,105]},
+              'ISA':     {'phases': ['0-5 Wks','6-10 Wks','11-16 Wks','17-2%'],             'days': [0,35,70,119]},
           }
 
           def get_athens_today():
-              """Get today's date in Athens time (handles DST automatically)."""
-              import subprocess, sys
+              import subprocess
               try:
                   result = subprocess.run(
                       ['python3','-c','import datetime,zoneinfo; print(datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Athens")).date())'],
@@ -46,16 +42,9 @@ jobs:
                   return date.today()
 
           def adjust_for_weekend(d):
-              """
-              If d is Saturday (5) → move to Friday (-1 day).
-              If d is Sunday  (6) → move to Monday (+1 day).
-              Returns (adjusted_date, note_string).
-              """
               dow = d.weekday()
-              if dow == 5:   # Saturday
-                  return d - timedelta(days=1), " (moved from Saturday)"
-              if dow == 6:   # Sunday
-                  return d + timedelta(days=1), " (moved from Sunday)"
+              if dow == 5: return d - timedelta(days=1), " (moved from Saturday)"
+              if dow == 6: return d + timedelta(days=1), " (moved from Sunday)"
               return d, ""
 
           def supabase_get(path):
@@ -71,11 +60,18 @@ jobs:
                   return json.loads(resp.read())
 
           def send_ntfy(title, body, priority='default'):
-              data = json.dumps({'topic': NTFY_TOPIC, 'title': title, 'message': body, 'priority': priority}).encode()
+              # Use direct URL format: ntfy.sh/<topic>  with headers for title/priority
+              url = f'https://ntfy.sh/{NTFY_TOPIC}'
+              print(f"Sending to: {url}")
+              data = body.encode('utf-8')
               req = urllib.request.Request(
-                  'https://ntfy.sh',
+                  url,
                   data=data,
-                  headers={'Content-Type': 'application/json'},
+                  headers={
+                      'Title':    title,
+                      'Priority': priority,
+                      'Tags':     'chicken',
+                  },
                   method='POST'
               )
               with urllib.request.urlopen(req) as resp:
@@ -84,56 +80,47 @@ jobs:
           today = get_athens_today()
           print(f"Athens date: {today}")
 
-          # Fetch all hatch records
           records = supabase_get('feed_hatches?select=*&order=row_index.asc')
           print(f"Found {len(records)} records")
 
           due_today = []
 
           for rec in records:
-              house = rec.get('house') or '—'
-              breed = rec.get('breed')
+              house     = rec.get('house') or '—'
+              breed     = rec.get('breed')
               hatch_str = rec.get('hatch')
+              if not breed or not hatch_str: continue
+              if breed not in BREEDS: continue
 
-              if not breed or not hatch_str:
-                  continue
-              if breed not in BREEDS:
-                  continue
-
-              hatch = date.fromisoformat(hatch_str)
+              hatch    = date.fromisoformat(hatch_str)
               schedule = BREEDS[breed]
 
               for phase_label, offset_days in zip(schedule['phases'], schedule['days']):
-                  raw_date = hatch + timedelta(days=offset_days)
+                  raw_date    = hatch + timedelta(days=offset_days)
                   notify_date, weekend_note = adjust_for_weekend(raw_date)
-
                   if notify_date == today:
                       due_today.append({
-                          'house': house,
-                          'breed': breed,
-                          'phase': phase_label,
-                          'raw_date': raw_date.strftime('%d/%m/%Y'),
-                          'weekend_note': weekend_note
+                          'house': house, 'breed': breed, 'phase': phase_label,
+                          'raw_date': raw_date.strftime('%d/%m/%Y'), 'weekend_note': weekend_note
                       })
                       print(f"DUE: {house} / {breed} / {phase_label} on {notify_date}{weekend_note}")
 
           if not due_today:
               print("No feed changes due today.")
           else:
-              # Group by house for a clean message
               lines = []
               for item in due_today:
-                  line = f"• {item['house']} ({item['breed']}): switch to {item['phase']}"
+                  line = f"* {item['house']} ({item['breed']}): switch to {item['phase']}"
                   if item['weekend_note']:
-                      line += f"\n  ⚠ Feed date was {item['raw_date']}{item['weekend_note']}"
+                      line += f" [feed date was {item['raw_date']}{item['weekend_note']}]"
                   lines.append(line)
 
-              count = len(due_today)
-              title = f"🐔 Feed Change{'s' if count > 1 else ''} Due Today ({count})"
-              body  = "\n".join(lines)
+              count    = len(due_today)
+              title    = f"Feed Change Due Today ({count})"
+              body     = "\n".join(lines)
               priority = 'high' if count > 1 else 'default'
 
               status = send_ntfy(title, body, priority)
-              print(f"ntfy response: {status}")
+              print(f"ntfy response status: {status}")
               print(f"Notification sent for {count} feed change(s).")
           PYEOF
